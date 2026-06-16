@@ -454,6 +454,14 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     elif nv <= -0.5: phase, ph_col = "La Nina",             "#2980b9"
     else:            phase, ph_col = "Neutral",             "#7f8c8d"
 
+    # Forecast restoration: first month after observations where Nino-3.4 drops below +0.5
+    _start = pd.Timestamp(2025, 7, 1)
+    restore_str = "Unknown"
+    for _i in range(N_OBS, len(NINO34_2026)):
+        if NINO34_2026[_i] < 0.5:
+            restore_str = (_start + pd.DateOffset(months=_i)).strftime("%B %Y")
+            break
+
     # Generate all charts (Plotly JS loaded once in the first chart; CDN for deploy)
     pjs_mode   = "cdn" if cdn else True
     c_map      = chart_pacific_map(include_plotlyjs=pjs_mode)
@@ -497,11 +505,10 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   p{{margin-bottom:.8rem;font-size:.94rem;}}
   .badge{{display:inline-block;padding:.25rem .9rem;border-radius:20px;
           font-family:"Barlow Condensed",sans-serif;font-size:.9rem;
-          font-weight:700;color:#fff;background:{ph_col};margin-bottom:1rem;
-          letter-spacing:.06em;text-transform:uppercase;}}
+          font-weight:700;color:#fff;background:{ph_col};margin-bottom:1rem;}}
   .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:.75rem;margin:1rem 0 1.5rem;}}
   .card{{background:#fff;border:1px solid #d5e3ef;border-radius:8px;padding:.85rem 1rem;}}
-  .lbl{{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:#7f8c8d;}}
+  .lbl{{font-size:.68rem;letter-spacing:.04em;color:#7f8c8d;}}
   .val{{font-size:1.4rem;font-weight:700;color:#e07b39;line-height:1.1;}}
   .note{{font-size:.73rem;color:#aaa;margin-top:.1rem;}}
   .cbox{{background:#fff;border:1px solid #d5e3ef;border-radius:8px;padding:1rem;margin:.8rem 0;}}
@@ -523,14 +530,12 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 </head>
 <body>
 
-<div style="background:linear-gradient(135deg,#2B6B72,#5BA8B0);color:#fff;
-     padding:2.5rem 1.5rem 2rem;text-align:center;">
-  <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;letter-spacing:.14em;
-       text-transform:uppercase;opacity:.7;margin-bottom:.5rem">
+<div style="background:#2B6B72;color:#fff;padding:2.5rem 1.5rem 2rem;text-align:center;">
+  <div style="font-family:'Hanken Grotesk',sans-serif;font-size:.82rem;opacity:.7;margin-bottom:.5rem">
     ENSO Monitor / {latest_date}
   </div>
   <h1 style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(1.8rem,4.5vw,3rem);
-       font-weight:700;letter-spacing:.03em;margin-bottom:.5rem;text-transform:uppercase;">
+       font-weight:700;letter-spacing:.03em;margin-bottom:.5rem;">
     El Nino 2026: Conditions and Historical Analogues
   </h1>
   <p style="font-family:'Hanken Grotesk',sans-serif;opacity:.85;max-width:580px;margin:0 auto;font-size:.94rem;">
@@ -562,6 +567,9 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <div class="card"><div class="lbl">Prob. Very Strong</div>
       <div class="val">63 %</div>
       <div class="note">NOAA CPC / NDJ 2026-27</div></div>
+    <div class="card"><div class="lbl">Forecast decay to neutral</div>
+      <div class="val" style="font-size:1.1rem;color:#2B6B72">{restore_str}</div>
+      <div class="note">First month Nino-3.4 forecast below +0.5 °C</div></div>
   </div>
 
 
