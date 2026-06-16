@@ -472,8 +472,9 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     c_analogue = chart_analogues(analogues)
     c_oni_full = chart_oni_full(oni)
 
-    # Current EP/CP ratio for the explanation
-    ratio = float(latest["nino12_anom"]) / max(float(latest["nino4_anom"]), 0.1)
+    soi_latest     = float(soi_df["soi"].iloc[-1])
+    soi_date       = soi_df.index[-1].strftime("%B %Y")
+    ratio          = float(latest["nino12_anom"]) / max(float(latest["nino4_anom"]), 0.1)
 
     top3_html = ""
     for r in top3:
@@ -513,9 +514,8 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   .note{{font-size:.73rem;color:#aaa;margin-top:.1rem;}}
   .cbox{{background:#fff;border:1px solid #d5e3ef;border-radius:8px;padding:1rem;margin:.8rem 0;}}
   .cnote{{font-size:.74rem;color:#7f8c8d;margin-top:.5rem;line-height:1.4;}}
-  .ep-cp{{background:#D1E8EC;border-left:4px solid #2B6B72;border-radius:6px;
-          padding:.9rem 1.1rem;margin:1rem 0;font-size:.9rem;}}
-  .ep-cp strong{{color:#0a3d62;}}
+  .infobox{{background:#D1E8EC;border-left:4px solid #2B6B72;border-radius:6px;
+            padding:.75rem 1rem;margin:.8rem 0;font-size:.88rem;color:#1a2535;}}
   .alert{{border-radius:6px;padding:.85rem 1rem;margin:.7rem 0;font-size:.86rem;}}
   .ag{{background:#fdf2f8;border-left:4px solid #8e44ad;color:#6c3483;}}
   .aw{{background:#fef9e7;border-left:4px solid #f1c40f;color:#7d6608;}}
@@ -548,21 +548,33 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   <div class="badge">{phase}</div>
   <p>Data current through <strong>{latest_date}</strong>. Source: NOAA CPC.</p>
 
+
+  <h2>Where are these measured?</h2>
+  <p>The four Nino regions are fixed boxes in the equatorial Pacific. The SOI is the pressure
+     difference between <strong>Darwin</strong> and <strong>Tahiti</strong>: when it goes strongly
+     negative, trade winds weaken and warm water spreads east — the ocean and atmosphere are
+     reinforcing each other. Nino-3.4 is the primary ENSO index (El Nino threshold: +0.5 °C).</p>
+  <div class="cbox" style="padding:.5rem;">
+    {c_map}
+  </div>
+
+
+  <h2>Current conditions</h2>
   <div class="grid">
     <div class="card"><div class="lbl">Nino-3.4</div>
       <div class="val">{latest['nino34_anom']:+.2f} °C</div>
-      <div class="note">Primary index / El Nino if above +0.5 °C</div></div>
+      <div class="note">Primary index / El Nino above +0.5 °C</div></div>
     <div class="card"><div class="lbl">Nino-1+2</div>
       <div class="val">{latest['nino12_anom']:+.2f} °C</div>
       <div class="note">Far eastern Pacific</div></div>
     <div class="card"><div class="lbl">Nino-3</div>
       <div class="val">{latest['nino3_anom']:+.2f} °C</div>
-      <div class="note">Central-East Pacific</div></div>
+      <div class="note">Central-east Pacific</div></div>
     <div class="card"><div class="lbl">Nino-4</div>
       <div class="val">{latest['nino4_anom']:+.2f} °C</div>
       <div class="note">Central Pacific</div></div>
-    <div class="card"><div class="lbl">SOI (BOM 30-day)</div>
-      <div class="val">-21.7</div>
+    <div class="card"><div class="lbl">SOI ({soi_date})</div>
+      <div class="val">{soi_latest:+.1f}</div>
       <div class="note">El Nino below -8</div></div>
     <div class="card"><div class="lbl">Prob. Very Strong</div>
       <div class="val">63 %</div>
@@ -572,131 +584,85 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
       <div class="note">First month Nino-3.4 forecast below +0.5 °C</div></div>
   </div>
 
-
-  <h2>Top Historical Analogues</h2>
-  <p>Ranked by Pearson correlation of Nino-3.4 monthly evolution (aligned from precursor July). Full ranking below.</p>
-  <div class="grid">{top3_html}</div>
-
-
-  <h2>Where Are These Indicators Measured?</h2>
-  <p>The four Nino regions are fixed boxes in the equatorial Pacific used to track SST anomalies.
-     The SOI is the sea-level pressure difference between <strong>Darwin</strong> (Australia)
-     and <strong>Tahiti</strong>: negative SOI signals weaker trade winds, which is the
-     atmospheric side of El Nino. Nino-3.4 is the primary modern ENSO index (threshold +/-0.5 °C).</p>
-  <div class="cbox" style="padding:.5rem;">
-    {c_map}
-  </div>
-
-
-  <h2>What the Current SST Pattern Tells Us</h2>
-  <div class="ep-cp">
-    <p><strong>Eastern Pacific (EP) vs. Central Pacific (CP) El Nino:</strong> not all El Ninos
-    are the same. The key distinction is <em>where</em> the warm water pools.</p>
-    <p>In an <strong>EP-type event</strong> the warmest anomaly sits in the far eastern Pacific,
-    close to the coast of South America. That is what Nino-1+2 and Nino-3 measure.
-    In a <strong>CP-type event</strong> (also called Modoki), the anomaly is centered near the
-    dateline in the Nino-4 region, and the eastern Pacific stays relatively cool.</p>
-    <p>Right now Nino-1+2 is at <strong>{latest['nino12_anom']:+.2f} °C</strong> while Nino-4 is
-    at <strong>{latest['nino4_anom']:+.2f} °C</strong>, a ratio of roughly {ratio:.1f}:1.
-    That strong eastern loading is the fingerprint of an EP-type event, structurally
-    consistent with 1997-98 (peak ONI +2.4 °C) and very different from 2009-10 (a CP/Modoki event
-    where Nino-4 nearly equalled Nino-3.4). EP events tend to be stronger, longer-lived,
-    and produce more pronounced global rainfall impacts than CP events.</p>
-  </div>
   <div class="cbox">
     {c_bar}
   </div>
-
-
-  <h2>Nino-3.4 SST Anomaly Comparison</h2>
-  <p>All events are aligned from <strong>July of the precursor year</strong> (month 0)
-     through June of the decay year (month 24). The 2026 event is distinctive: it starts
-     at -0.9 °C (La Nina territory) before accelerating sharply to El Nino onset by May 2026.
-     The other three analogues all started from near-neutral conditions.</p>
-  <div class="cbox">
-    {c_nino34}
-    <p class="cnote">Solid lines: observed monthly Nino-3.4 SST anomaly.
-    Dashed blue: NOAA/IRI model consensus forecast.
-    Sources: NOAA CPC sstoi.indices, IRI Columbia.</p>
+  <div class="infobox">
+    <strong>EP vs CP:</strong> not all El Ninos are the same. In an Eastern Pacific event the warmth
+    sits off South America (Nino-1+2 and Nino-3); in a Central Pacific event it pools near the
+    dateline (Nino-4). Right now Nino-1+2 ({latest['nino12_anom']:+.2f} °C) is running {ratio:.1f}x
+    Nino-4 ({latest['nino4_anom']:+.2f} °C) — a strong EP signature, consistent with 1997-98.
+    EP events tend to be stronger and longer-lived than CP events.
   </div>
 
 
-  <h2>Nino 1+2 SST Anomaly Comparison</h2>
-  <p>Nino 1+2 covers the far eastern Pacific just off the coast of Ecuador and Peru (90-80 W, 0-10 S).
-     In EP-type events it is the <strong>first region to warm</strong> and typically reaches the
-     highest absolute anomalies of the four regions. Its trajectory is therefore an early-warning signal:
-     a sharp Nino 1+2 rise weeks before Nino 3.4 crosses threshold is characteristic of fast-developing
-     EP events like 1997-98. The 2026 rise from -0.3 C in March to +1.81 C in May is
-     one of the fastest accelerations in the observational record for this region.</p>
-  <div class="cbox">
-    {c_nino12}
-    <p class="cnote">Observed (solid) through May 2026. Dashed blue: estimated forecast based on
-    NOAA CPC trajectory for Nino-3.4 scaled to typical Nino 1+2 / Nino 3.4 ratios in EP events.
-    Note: Nino 1+2 is considerably more variable than Nino 3.4 and forecast uncertainty is higher.</p>
-  </div>
-
-
-  <h2>Southern Oscillation Index</h2>
-  <p>Negative SOI means atmospheric pressure is rising in Darwin relative to Tahiti,
-     which weakens the trade winds and reinforces warm SSTs through the Bjerknes feedback.
-     The June 2026 BOM 30-day SOI of <strong>-21.7</strong> is already in the range seen
-     near the peak of 1997-98 and 2015-16, even though the ocean is still in early development.</p>
-  <div class="cbox">
-    {c_soi}
-    <p class="cnote">Monthly SOI. BOM El Nino threshold: -8. La Nina threshold: +8.</p>
-  </div>
-
-
-  <h2>Full Historical Context: ONI Since 1950</h2>
-  <p>This chart shows every El Nino and La Nina event in the observational record.
-     Red shading marks periods when ONI exceeded +0.5 °C; blue shading marks La Nina periods
-     below -0.5 °C. Use this to see how frequently events occur, how long they last,
-     and how 2026 compares to the full distribution of intensities.</p>
+  <h2>Historical context: ONI since 1950</h2>
+  <p>Every El Nino and La Nina in the observational record. Use this to see how frequently
+     events occur, how long they last, and how intense they get. The four annotated peaks are
+     the events most comparable to 2026.</p>
   <div class="cbox">
     {c_oni_full}
     <p class="cnote">ONI = 3-month running mean of Nino-3.4 SST anomaly. Source: NOAA CPC.</p>
   </div>
 
 
-  <h2>Full Analogue Ranking</h2>
-  <p>Pearson correlation of the first 12 observed months of Nino-3.4 evolution,
-     aligned from precursor July. All confirmed El Nino events since 1950 are included.</p>
+  <h2>Historical analogues</h2>
+  <p>Ranked by how closely each past event's Nino-3.4 evolution matches 2026 over the first
+     12 observed months, aligned from precursor July.</p>
+  <div class="grid">{top3_html}</div>
+
+  <div class="cbox">
+    {c_nino34}
+    <p class="cnote">Solid lines: observed monthly Nino-3.4 anomaly. Dashed blue: NOAA/IRI forecast.
+    Month 0 = July of the precursor year.</p>
+  </div>
+
+  <div class="cbox">
+    {c_nino12}
+    <p class="cnote">Nino-1+2 (far eastern Pacific, off Ecuador and Peru) leads and amplifies EP
+    events. The 2026 acceleration from -0.3 °C in March to +1.81 °C in May is among the fastest
+    on record for this region. Dashed blue: estimated from Nino-3.4 forecast using typical EP ratios.</p>
+  </div>
+
+  <div class="cbox">
+    {c_soi}
+    <p class="cnote">Negative SOI = weaker trades = more warming. NOAA monthly SOI.
+    El Nino threshold: -8. La Nina: +8.</p>
+  </div>
+
+
+  <h2>Full analogue ranking</h2>
+  <p>All confirmed El Nino events since 1950, ordered by Pearson correlation of the first
+     12 months of Nino-3.4 evolution.</p>
   <div class="cbox">
     {c_analogue}
-    <p class="cnote">Similarity is based on Nino-3.4 monthly evolution only.
-    EP/CP type classification and subsurface precursors are additional dimensions not captured
-    by this single metric.</p>
+    <p class="cnote">Similarity captures shape, not magnitude. EP/CP type and subsurface
+    precursors are separate dimensions not reflected here.</p>
   </div>
 
 
-  <h2>Data Gaps</h2>
+  <h2>What's coming</h2>
 
   <div class="alert ag">
-    <strong>Kelvin waves (subsurface):</strong> downwelling Kelvin waves initiated in December 2025,
-    January 2026 and March 2026 are the primary subsurface precursor of this event and are
-    confirmed by NOAA CPC. However, quantitative subsurface temperature depth-section data
-    (GODAS or TAO/TRITON arrays) was not integrated here. Adding it would show the thermocline
-    depth anomaly propagating eastward, which is the clearest visual signal of a developing event.
+    <strong>Kelvin waves (subsurface):</strong> three downwelling Kelvin waves in late 2025 and early
+    2026 loaded the thermocline and are the primary subsurface driver of this event. Quantitative
+    depth-section data (GODAS/TAO-TRITON) would show this clearly but is not yet integrated here.
   </div>
 
   <div class="alert ag">
-    <strong>Warm Water Volume (WWV):</strong> the depth of the 20 °C isotherm averaged over
-    5S-5N, 120E-80W is the standard measure of heat reservoir size. Available at NOAA PMEL.
-    High WWV before onset is one reason the 1997-98 and 2015-16 events peaked so strongly.
+    <strong>Warm Water Volume (WWV):</strong> the volume of water above 20 °C averaged over
+    5S-5N, 120E-80W predicts peak intensity months in advance. Available at NOAA PMEL; planned addition.
   </div>
 
   <div class="alert ag">
-    <strong>OLR (Outgoing Longwave Radiation):</strong> OLR anomalies over the western Pacific
-    warm pool reveal whether atmospheric convection has fully coupled to the SST anomaly.
-    Strong negative OLR (enhanced convection) would confirm full Bjerknes feedback.
-    The data is publicly available from NOAA PSL but was not yet fetched here because parsing
-    the binary NetCDF format requires adding <code>netCDF4</code> or <code>xarray</code> as a
-    dependency. It is a planned addition.
+    <strong>OLR (Outgoing Longwave Radiation):</strong> negative OLR anomalies over the western
+    Pacific warm pool confirm that convection has coupled to the SST anomaly. Requires
+    <code>netCDF4</code> or <code>xarray</code>; planned addition.
   </div>
 
   <div class="alert aw">
-    <strong>AMJ 2026 RONI pending:</strong> the April-May-June running ONI will be the first
-    seasonal value fully within El Nino territory and will refine the intensity analogue.
+    <strong>AMJ 2026 ONI pending:</strong> the April-May-June running mean will be the first
+    seasonal value fully within El Nino territory and will sharpen the intensity estimate.
   </div>
 
 
@@ -705,7 +671,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices" target="_blank">NOAA CPC: Monthly Nino region SST indices</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt" target="_blank">NOAA CPC: Oceanic Nino Index (ONI)</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/soi" target="_blank">NOAA CPC: Standardised SOI</a></li>
-    <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, 11 June 2026</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, June 2026</a></li>
     <li><a href="https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/" target="_blank">IRI Columbia: ENSO Forecasts, June 2026</a></li>
   </ul>
 
