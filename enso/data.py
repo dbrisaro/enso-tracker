@@ -48,7 +48,7 @@ def _get(url: str) -> str:
 
 def fetch_sst() -> pd.DataFrame:
     """
-    Monthly Niño-region SST and anomalies from NOAA CPC (1950–present).
+    Monthly Nino-region SST and anomalies from NOAA CPC (1950-present).
     Columns: nino12, nino12_anom, nino3, nino3_anom, nino4, nino4_anom, nino34, nino34_anom
     """
     raw = _get(URLS["sst"])
@@ -74,9 +74,9 @@ def fetch_sst() -> pd.DataFrame:
 
 def fetch_oni() -> pd.DataFrame:
     """
-    3-month running ONI from NOAA CPC (1950–present).
+    3-month running ONI from NOAA CPC (1950-present).
     File format: SEAS  YR  SST  ANOM  (4 columns; ANOM is the ONI value)
-    Maps each season to its centre month: DJF→Jan, JFM→Feb, … NDJ→Dec.
+    Maps each season to its centre month: DJF->Jan, JFM->Feb, ... NDJ->Dec.
     Columns: season, year, oni
     """
     CENTRE = {
@@ -102,7 +102,7 @@ def fetch_oni() -> pd.DataFrame:
 
 def fetch_soi() -> pd.DataFrame:
     """
-    Monthly standardised SOI from NOAA CPC (1951–present).
+    Monthly standardised SOI from NOAA CPC (1951-present).
     Column: soi
     """
     rows = []
@@ -113,7 +113,7 @@ def fetch_soi() -> pd.DataFrame:
             continue
         yr   = int(line[:4])
         rest = line[4:]
-        # NOAA format omits spaces before negative values: "1.5-0.3" → "1.5 -0.3"
+        # NOAA format omits spaces before negative values: "1.5-0.3" -> "1.5 -0.3"
         rest = re.sub(r"(\d)(-)", r"\1 \2", rest)
         for m, v in enumerate(rest.split()[:12], start=1):
             try:

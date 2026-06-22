@@ -61,13 +61,14 @@ def main():
         if not repo.is_dir():
             print(f"❌  Deploy path not found: {repo}", file=sys.stderr)
             sys.exit(1)
-        dest = repo / "enso_tracker.html"
+        dest = repo / "portfolio" / "enso-tracker" / "index.html"
+        dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(out, dest)
         print(f"✅  Deployed → {dest}")
         print()
         print("    Next steps:")
         print(f"      cd {repo}")
-        print("      git add enso_tracker.html _portfolio/enso-tracker.md")
+        print("      git add portfolio/enso-tracker/index.html _portfolio/enso-tracker.md")
         print('      git commit -m "update ENSO tracker"')
         print("      git push")
     else:
