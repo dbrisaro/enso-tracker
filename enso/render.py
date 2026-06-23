@@ -13,10 +13,7 @@ MONTH_LABELS = [
     "Jan","Feb","Mar","Apr","May","Jun",
 ]
 
-NINO34_2026 = [-.6,-.7,-.8,-.9,-.9,-.9, -.8,-.5,-.3,-.1,.6,.8, 1.1,1.4,1.7,1.9,2.1,2.2, 2.2,2.0,1.6,1.1,.5,.0]
-NINO12_2026 = [-.5,-.6,-.7,-.8,-.8,-.7, -.3,.92,1.29,1.52,1.81,2.1, 2.8,3.4,3.8,4.0,4.0,3.7, 3.1,2.4,1.6,.8,.1,-.4]
-SOI_2026    = [ 0.50, 0.67, 0.83, 0.83, 0.67, 0.42,  0.17, 0.00,-0.33,-0.92,-0.92,-1.83, -1.67,-1.83,-1.67,-1.83,-1.67,-1.50, -1.33,-1.08,-0.75,-0.42,-0.08, 0.25]
-N_OBS       = 12
+N_OBS = 12
 
 SHOW_EVENTS = ["1997–98", "2015–16", "1982–83", "2023–24"]
 
@@ -40,11 +37,6 @@ _YAXIS = dict(showgrid=True, gridcolor="rgba(0,0,0,0.07)")
 def _pjs(include):
     return include
 
-
-def _split(vals, n_obs):
-    obs  = [v if i < n_obs else None for i, v in enumerate(vals)]
-    fcst = [v if i >= n_obs - 1 else None for i, v in enumerate(vals)]
-    return obs, fcst
 
 
 def _rect(lat1, lat2, lon1, lon2, n=40):
@@ -241,13 +233,10 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
             marker=dict(size=3), opacity=0.85,
         ))
 
-    obs, fcst = _split(NINO34_2026, N_OBS)
-    fig.add_trace(go.Scatter(x=x, y=obs, mode="lines+markers",
+    obs_2026 = aligned_series(nino34_series, 2026, 24)
+    fig.add_trace(go.Scatter(x=x, y=obs_2026, mode="lines+markers",
         name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5),
         marker=dict(size=5)))
-    fig.add_trace(go.Scatter(x=x, y=fcst, mode="lines",
-        name="2026-27 (forecast)", line=dict(color="#1e6fa5", width=2, dash="dash"),
-        opacity=0.7))
 
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.1], **_YAXIS)
@@ -307,13 +296,10 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
             marker=dict(size=3.5), opacity=0.9,
         ))
 
-    obs, fcst = _split(NINO12_2026, N_OBS)
-    fig.add_trace(go.Scatter(x=x, y=obs, mode="lines+markers",
+    obs_2026 = aligned_series(nino12_series, 2026, 24)
+    fig.add_trace(go.Scatter(x=x, y=obs_2026, mode="lines+markers",
         name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5),
         marker=dict(size=5)))
-    fig.add_trace(go.Scatter(x=x, y=fcst, mode="lines",
-        name="2026-27 (forecast)", line=dict(color="#1e6fa5", width=2, dash="dash"),
-        opacity=0.7))
 
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="Niño-1+2 anomaly (°C)", range=[-2.5, 5.5], **_YAXIS)
@@ -348,14 +334,9 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
         fig.add_trace(go.Scatter(x=x, y=vals, mode="lines+markers", name=event,
             line=dict(color=meta["color"], width=2), marker=dict(size=3), opacity=0.85))
 
-    soi_2026_full = aligned_series(soi_series, 2026, 24)
-    n_actual = sum(1 for v in soi_2026_full if v is not None)
-    fcst_vals = [soi_2026_full[i] if i < n_actual else SOI_2026[i] for i in range(24)]
-    fcst_line = [fcst_vals[i] if i >= n_actual - 1 else None for i in range(24)]
-    fig.add_trace(go.Scatter(x=x, y=soi_2026_full, mode="lines+markers",
+    obs_2026 = aligned_series(soi_series, 2026, 24)
+    fig.add_trace(go.Scatter(x=x, y=obs_2026, mode="lines+markers",
         name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5), marker=dict(size=5)))
-    fig.add_trace(go.Scatter(x=x, y=fcst_line, mode="lines",
-        name="2026-27 (forecast)", line=dict(color="#1e6fa5", width=2, dash="dash"), opacity=0.7))
 
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="SOI (standardised)", range=[-6.5, 4.5], **_YAXIS)
@@ -501,13 +482,6 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     elif nv <= -0.5: phase, ph_col = "La Niña",             "#2980b9"
     else:            phase, ph_col = "Neutral",             "#7f8c8d"
 
-    _start = pd.Timestamp(2025, 7, 1)
-    restore_str = "Unknown"
-    for _i in range(N_OBS, len(NINO34_2026)):
-        if NINO34_2026[_i] < 0.5:
-            restore_str = (_start + pd.DateOffset(months=_i)).strftime("%B %Y")
-            break
-
     pjs_mode   = "cdn" if cdn else True
     c_map      = chart_pacific_map(include_plotlyjs=pjs_mode)
     c_oni_full = chart_oni_full(oni)
@@ -601,7 +575,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        targets, so this region is particularly relevant for the comparison.</p>
     <div class="cbox">
       {c_nino12_roni}
-      <p class="cnote">Dashed blue estimated from Niño-3.4 forecast using typical EP scaling ratios.</p>
+      <p class="cnote">Observed monthly data. Source: NOAA CPC.</p>
     </div>
     <p>SOI for RONI analogues. Atmospheric coupling is captured here regardless of background SST era.</p>
     <div class="cbox">
@@ -735,9 +709,6 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <div class="card"><div class="lbl">Prob. Very Strong</div>
       <div class="val">63 %</div>
       <div class="note">NOAA CPC / NDJ 2026-27</div></div>
-    <div class="card"><div class="lbl">Forecast decay to neutral</div>
-      <div class="val" style="font-size:1.1rem;color:#2B6B72">{restore_str}</div>
-      <div class="note">First month Niño-3.4 forecast below +0.5 °C</div></div>
   </div>
 
   <div class="infobox">
@@ -777,7 +748,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        the NOAA/IRI forecast takes it from here.</p>
     <div class="cbox">
       {c_nino34_oni}
-      <p class="cnote">Solid: observed. Dashed blue: NOAA/IRI forecast. Month 0 = July of precursor year.</p>
+      <p class="cnote">Observed monthly data. Month 0 = July of precursor year. Source: NOAA CPC.</p>
     </div>
     <p>Niño 1+2 captures the far eastern Pacific, just off Ecuador and Peru. In Eastern Pacific
        events this region warms first and most sharply. The 2026 jump from -0.3 °C in March to
@@ -785,7 +756,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        well above where 2023-24 was at the same stage.</p>
     <div class="cbox">
       {c_nino12_oni}
-      <p class="cnote">Dashed blue estimated from Niño-3.4 forecast using typical EP scaling ratios.</p>
+      <p class="cnote">Observed monthly data. Source: NOAA CPC.</p>
     </div>
     <p>The SOI provides the atmospheric side of the story. When the SOI turns sharply negative,
        trade winds weaken and warm water spreads east, amplifying the ocean anomaly through
