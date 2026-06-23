@@ -348,10 +348,13 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
         fig.add_trace(go.Scatter(x=x, y=vals, mode="lines+markers", name=event,
             line=dict(color=meta["color"], width=2), marker=dict(size=3), opacity=0.85))
 
-    obs, fcst = _split(SOI_2026, N_OBS)
-    fig.add_trace(go.Scatter(x=x, y=obs, mode="lines+markers",
+    soi_2026_full = aligned_series(soi_series, 2026, 24)
+    n_actual = sum(1 for v in soi_2026_full if v is not None)
+    fcst_vals = [soi_2026_full[i] if i < n_actual else SOI_2026[i] for i in range(24)]
+    fcst_line = [fcst_vals[i] if i >= n_actual - 1 else None for i in range(24)]
+    fig.add_trace(go.Scatter(x=x, y=soi_2026_full, mode="lines+markers",
         name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5), marker=dict(size=5)))
-    fig.add_trace(go.Scatter(x=x, y=fcst, mode="lines",
+    fig.add_trace(go.Scatter(x=x, y=fcst_line, mode="lines",
         name="2026-27 (forecast)", line=dict(color="#1e6fa5", width=2, dash="dash"), opacity=0.7))
 
     fig.update_xaxes(**_XAXIS)
