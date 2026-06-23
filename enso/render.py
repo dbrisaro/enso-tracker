@@ -15,7 +15,7 @@ MONTH_LABELS = [
 
 NINO34_2026 = [-.6,-.7,-.8,-.9,-.9,-.9, -.8,-.5,-.3,-.1,.6,.8, 1.1,1.4,1.7,1.9,2.1,2.2, 2.2,2.0,1.6,1.1,.5,.0]
 NINO12_2026 = [-.5,-.6,-.7,-.8,-.8,-.7, -.3,.92,1.29,1.52,1.81,2.1, 2.8,3.4,3.8,4.0,4.0,3.7, 3.1,2.4,1.6,.8,.1,-.4]
-SOI_2026    = [ 6., 8.,10.,10., 8., 5.,  2., 0.,-4.,-11.,-11.,-22., -20.,-22.,-20.,-22.,-20.,-18., -16.,-13.,-9.,-5.,-1., 3.]
+SOI_2026    = [ 0.50, 0.67, 0.83, 0.83, 0.67, 0.42,  0.17, 0.00,-0.33,-0.92,-0.92,-1.83, -1.67,-1.83,-1.67,-1.83,-1.67,-1.50, -1.33,-1.08,-0.75,-0.42,-0.08, 0.25]
 N_OBS       = 12
 
 SHOW_EVENTS = ["1997–98", "2015–16", "1982–83", "2023–24"]
@@ -330,9 +330,9 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
     fig = go.Figure()
 
     for y, color, label in [
-        (-8, "rgba(192,57,43,0.55)",  "El Niño (-8)"),
-        ( 0, "rgba(0,0,0,0.18)",      ""),
-        ( 8, "rgba(30,111,165,0.45)", "La Niña (+8)"),
+        (-1.0, "rgba(192,57,43,0.55)",  "El Niño (-1)"),
+        ( 0,   "rgba(0,0,0,0.18)",      ""),
+        ( 1.0, "rgba(30,111,165,0.45)", "La Niña (+1)"),
     ]:
         fig.add_hline(y=y, line_dash="dash", line_color=color, line_width=1,
                       annotation_text=label, annotation_position="right",
@@ -355,7 +355,7 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
         name="2026-27 (forecast)", line=dict(color="#1e6fa5", width=2, dash="dash"), opacity=0.7))
 
     fig.update_xaxes(**_XAXIS)
-    fig.update_yaxes(title_text="SOI", range=[-30, 22], **_YAXIS)
+    fig.update_yaxes(title_text="SOI (standardised)", range=[-6.5, 4.5], **_YAXIS)
     fig.update_layout(title="Southern Oscillation Index: 2026 vs Historical Analogues",
                       height=420, **_LAYOUT)
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
@@ -603,7 +603,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <p>SOI for RONI analogues. Atmospheric coupling is captured here regardless of background SST era.</p>
     <div class="cbox">
       {c_soi_roni}
-      <p class="cnote">El Niño threshold -8, La Niña +8. Source: NOAA CPC.</p>
+      <p class="cnote">El Niño threshold -1, La Niña +1. Standardised SOI. Source: NOAA CPC.</p>
     </div>
     <h2>Full analogue ranking (RONI)</h2>
     <p class="takehome">RONI rankings often surface older events from the 1960s and 1970s. This is expected: stripped of the warming trend, those events look more like 2026 in terms of forcing pattern.</p>
@@ -728,7 +728,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
       <div class="note">Central Pacific</div></div>
     <div class="card"><div class="lbl">SOI ({soi_date})</div>
       <div class="val">{soi_latest:+.1f}</div>
-      <div class="note">El Niño below -8</div></div>
+      <div class="note">El Niño below -1 (standardised)</div></div>
     <div class="card"><div class="lbl">Prob. Very Strong</div>
       <div class="val">63 %</div>
       <div class="note">NOAA CPC / NDJ 2026-27</div></div>
@@ -790,7 +790,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        coupling is already well established.</p>
     <div class="cbox">
       {c_soi_oni}
-      <p class="cnote">El Niño threshold -8, La Niña +8. Source: NOAA CPC.</p>
+      <p class="cnote">El Niño threshold -1, La Niña +1. Standardised SOI. Source: NOAA CPC.</p>
     </div>
     <h2>Full analogue ranking (ONI)</h2>
     <p class="takehome">The top three analogues are far ahead of the rest, which tells you the 2026 trajectory is distinctive. Events ranked below 0.5 followed a different path from the start.</p>
