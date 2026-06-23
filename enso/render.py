@@ -1,7 +1,5 @@
-"""
-Builds a self-contained HTML page with interactive Plotly charts.
-Plotly JS loaded once from CDN; all other charts reuse the same bundle.
-"""
+import base64
+import io as _io
 import plotly.graph_objects as go
 import plotly.io as pio
 import pandas as pd
@@ -15,21 +13,12 @@ MONTH_LABELS = [
     "Jan","Feb","Mar","Apr","May","Jun",
 ]
 
-# Observed 2026 data (Jul 2025 to Jun 2026) + NOAA/IRI model consensus forecast (Jul 2026 to Jun 2027)
 NINO34_2026 = [-.6,-.7,-.8,-.9,-.9,-.9, -.8,-.5,-.3,-.1,.6,.8, 1.1,1.4,1.7,1.9,2.1,2.2, 2.2,2.0,1.6,1.1,.5,.0]
-# Niño 1+2 leads Niño 3.4 in EP events and peaks higher; observed from NOAA, forecast estimated
 NINO12_2026 = [-.5,-.6,-.7,-.8,-.8,-.7, -.3,.92,1.29,1.52,1.81,2.1, 2.8,3.4,3.8,4.0,4.0,3.7, 3.1,2.4,1.6,.8,.1,-.4]
 SOI_2026    = [ 6., 8.,10.,10., 8., 5.,  2., 0.,-4.,-11.,-11.,-22., -20.,-22.,-20.,-22.,-20.,-18., -16.,-13.,-9.,-5.,-1., 3.]
-N_OBS       = 12   # months with real observations (Jul 2025 to Jun 2026)
+N_OBS       = 12
 
 SHOW_EVENTS = ["1997–98", "2015–16", "1982–83", "2023–24"]
-
-_SOI_HIST = {
-    "1997–98": [ 2, 1, 0,-2,-3,-4, -6,-10,-14,-16,-18,-20, -22,-24,-22,-24,-22,-20, -18,-15,-12,-8,-3, 4],
-    "2015–16": [ 5, 4, 3, 2, 0,-2, -4, -6, -8,-10,-12,-14, -16,-18,-20,-22,-20,-18, -16,-14,-10,-6,-2, 2],
-    "1982–83": [ 3, 2, 1, 0,-1,-2, -3, -5, -8,-10,-14,-16, -18,-20,-18,-20,-18,-16, -15,-13, -9,-5,-1, 4],
-    "2023–24": [ 2, 1,-1,-2,-3,-4, -5, -8,-12,-14,-16,-14, -16,-18,-14,-16,-14,-12,  -8, -5, -2, 0, 2, 4],
-}
 
 _LAYOUT = dict(
     plot_bgcolor="white", paper_bgcolor="white",
@@ -49,7 +38,7 @@ _YAXIS = dict(showgrid=True, gridcolor="rgba(0,0,0,0.07)")
 
 
 def _pjs(include):
-    return include  # True = inline, 'cdn' = CDN, False = skip
+    return include
 
 
 def _split(vals, n_obs):
@@ -58,9 +47,7 @@ def _split(vals, n_obs):
     return obs, fcst
 
 
-# ── CHART: Pacific monitoring region map ──────────────────────────────────────
 def _rect(lat1, lat2, lon1, lon2, n=40):
-    """Densified rectangle so edges follow lat/lon lines (not geodesics) on Mercator."""
     top    = ([lat1]*n,             list(np.linspace(lon1, lon2, n)))
     right  = (list(np.linspace(lat1, lat2, n)), [lon2]*n)
     bottom = ([lat2]*n,             list(np.linspace(lon2, lon1, n)))
@@ -71,14 +58,10 @@ def _rect(lat1, lat2, lon1, lon2, n=40):
 
 
 def chart_pacific_map(include_plotlyjs=False) -> str:
-    """Interactive Plotly geo map with Niño regions and SOI stations."""
     fig = go.Figure()
 
-    # All regions: fill with no border (transparent line) + separate border trace.
-    # This makes every legend entry look identical — just a filled colour swatch.
     n = 40
     regions = [
-        # name,       lat1, lat2,  lon1,  lon2,   fillcolor,               linecolor,  legendgroup, halves
         ("Niño 4",    5,   -5,     160,  -150,    "rgba(44,160,44,0.35)",  "#2ca02c",  "nino4",     True),
         ("Niño 3.4",  5,   -5,    -170,  -120,    "rgba(255,127,14,0.35)", "#ff7f0e",  None,        False),
         ("Niño 3",    5,   -5,    -150,   -90,    "rgba(214,39,40,0.30)",  "#d62728",  None,        False),
@@ -86,7 +69,6 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
     ]
     for name, lat1, lat2, lon1, lon2, fc, lc, lg, dateline in regions:
         if dateline:
-            # Two fill halves, first one carries the legend entry
             halves = [(lat1, lat2, 160, 180), (lat1, lat2, -180, lon2)]
             for i, (a1, a2, l1, l2) in enumerate(halves):
                 lats, lons = _rect(a1, a2, l1, l2)
@@ -95,7 +77,6 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
                     fillcolor=fc, line=dict(color="rgba(0,0,0,0)", width=0),
                     name=name, legendgroup=lg, showlegend=(i == 0), hoverinfo="skip",
                 ))
-            # Outer border only (no seam at dateline)
             for seg_lats, seg_lons in [
                 (list(np.linspace(lat1, lat2, n)), [160]*n),
                 ([lat1]*n, list(np.linspace(160, 180, n))),
@@ -116,14 +97,12 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
                 fillcolor=fc, line=dict(color="rgba(0,0,0,0)", width=0),
                 name=name, showlegend=True, hoverinfo="skip",
             ))
-            # Border as a separate trace (not in legend)
             fig.add_trace(go.Scattergeo(
                 lat=lats, lon=lons, mode="lines",
                 line=dict(color=lc, width=1.5),
                 name=name, showlegend=False, hoverinfo="skip",
             ))
 
-    # Region labels above the boxes
     for label, lon, color in [
         ("NIÑO 4",   175,  "#2ca02c"),
         ("NIÑO 3.4", -145, "#ff7f0e"),
@@ -136,7 +115,6 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
             showlegend=False, hoverinfo="skip",
         ))
 
-    # SOI stations
     fig.add_trace(go.Scattergeo(
         lat=[-12.4, -17.5], lon=[130.8, -149.6],
         mode="markers+text",
@@ -158,8 +136,8 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
         projection_rotation=dict(lon=180),
         lataxis_range=[-30, 20],
         lonaxis_range=[-100, 100],
-        showland=True,      landcolor="#D4C5A0",
-        showocean=True,     oceancolor="#9DC4E8",
+        showland=True, landcolor="#D4C5A0",
+        showocean=True, oceancolor="#9DC4E8",
         showcoastlines=True, coastlinecolor="rgba(80,80,80,0.55)",
         coastlinewidth=0.7,
         showlakes=False, showrivers=False,
@@ -169,24 +147,21 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
     fig.update_layout(
         title="ENSO Monitoring Regions and SOI Stations",
         height=380,
-        margin=dict(l=0, r=0, t=50, b=0),
-        legend=dict(orientation="h", yanchor="bottom", y=1.0,
-                    xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0.85)"),
+        margin=dict(l=0, r=0, t=50, b=55),
+        legend=dict(orientation="h", yanchor="top", y=-0.05,
+                    xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0)"),
         font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
         paper_bgcolor="#9DC4E8",
     )
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-# ── CHART: Full ONI time series ───────────────────────────────────────────────
 def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
-    """Complete ONI record from 1950 to present with shaded El Niño/La Niña periods."""
     fig = go.Figure()
 
     dates = oni.index.tolist()
     vals  = oni["oni"].tolist()
 
-    # Shaded fills above/below thresholds
     el_nino = [v if v >= 0.5 else 0.0 for v in vals]
     la_nina = [v if v <= -0.5 else 0.0 for v in vals]
 
@@ -201,19 +176,16 @@ def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
         mode="none", name="La Niña (ONI <= -0.5)", hoverinfo="skip",
     ))
 
-    # ONI line
     fig.add_trace(go.Scatter(
         x=dates, y=vals, mode="lines",
         name="ONI", line=dict(color="#1a2535", width=1.5),
         hovertemplate="%{x|%b %Y}: %{y:.2f} °C<extra></extra>",
     ))
 
-    # Threshold lines
     fig.add_hline(y= 0.5, line_dash="dash", line_color="rgba(192,57,43,0.5)", line_width=1)
     fig.add_hline(y=-0.5, line_dash="dash", line_color="rgba(30,111,165,0.5)", line_width=1)
     fig.add_hline(y= 0,   line_color="rgba(0,0,0,0.15)", line_width=1)
 
-    # Annotate the four super events + 2026 current position
     oni_s = oni["oni"]
     for label, yr in [("1982-83",1983),("1997-98",1998),("2015-16",2016),("2023-24",2024)]:
         subset = oni_s[oni_s.index.year == yr]
@@ -241,8 +213,9 @@ def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-# ── CHART: Niño-3.4 aligned comparison ───────────────────────────────────────
-def chart_nino34(nino34_series: pd.Series, include_plotlyjs=False) -> str:
+def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+    if show_events is None:
+        show_events = SHOW_EVENTS
     fig = go.Figure()
 
     for y, color, label in [
@@ -259,7 +232,7 @@ def chart_nino34(nino34_series: pd.Series, include_plotlyjs=False) -> str:
 
     x = list(range(24))
 
-    for event in SHOW_EVENTS:
+    for event in show_events:
         meta = ENSO_EVENTS[event]
         vals = aligned_series(nino34_series, meta["onset_yr"], 24)
         fig.add_trace(go.Scatter(
@@ -283,13 +256,9 @@ def chart_nino34(nino34_series: pd.Series, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-# ── CHART: Niño 1+2 aligned comparison ───────────────────────────────────────
-def chart_nino12(nino12_series: pd.Series, include_plotlyjs=False) -> str:
-    """
-    Niño 1+2 aligned comparison across ALL historical El Niño events since 1950.
-    Top analogues are drawn with full colour; remaining events as grey background lines
-    so the full envelope of possible behaviours is visible.
-    """
+def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+    if show_events is None:
+        show_events = SHOW_EVENTS
     fig = go.Figure()
 
     for y, color, label in [
@@ -307,23 +276,19 @@ def chart_nino12(nino12_series: pd.Series, include_plotlyjs=False) -> str:
 
     x = list(range(24))
 
-    # Find every year in the record where Niño 1+2 peaked above +1.5 °C
-    # at any point in the 24-month aligned window — this captures events
-    # that don't qualify as El Niño in Niño 3.4 (e.g. coastal El Niño events).
     first_year = nino12_series.index.year.min()
-    last_year  = nino12_series.index.year.max() - 1  # need at least 1 year of data after onset
-    highlight_labels = {ENSO_EVENTS[e]["onset_yr"]: e for e in SHOW_EVENTS}
+    last_year  = nino12_series.index.year.max() - 1
+    highlight_onsets = {ENSO_EVENTS[e]["onset_yr"] for e in show_events}
 
-    warm_years = {}  # onset_yr -> label
+    warm_years = {}
     for yr in range(first_year, last_year + 1):
         vals = aligned_series(nino12_series, yr, 24)
         peak = max((v for v in vals if v is not None), default=None)
         if peak is not None and peak >= 1.5:
             warm_years[yr] = vals
 
-    # 1. Grey background lines — all warm years not in the highlighted set
     for yr, vals in warm_years.items():
-        if yr == 2026 or yr in highlight_labels:
+        if yr == 2026 or yr in highlight_onsets:
             continue
         label = f"{yr}-{str(yr+1)[-2:]}"
         fig.add_trace(go.Scatter(
@@ -333,8 +298,7 @@ def chart_nino12(nino12_series: pd.Series, include_plotlyjs=False) -> str:
             hovertemplate=f"<b>{label}</b>: %{{y:.2f}} °C<extra></extra>",
         ))
 
-    # 2. Highlighted analogues on top
-    for event in SHOW_EVENTS:
+    for event in show_events:
         meta = ENSO_EVENTS[event]
         vals = aligned_series(nino12_series, meta["onset_yr"], 24)
         fig.add_trace(go.Scatter(
@@ -343,7 +307,6 @@ def chart_nino12(nino12_series: pd.Series, include_plotlyjs=False) -> str:
             marker=dict(size=3.5), opacity=0.9,
         ))
 
-    # 3. 2026
     obs, fcst = _split(NINO12_2026, N_OBS)
     fig.add_trace(go.Scatter(x=x, y=obs, mode="lines+markers",
         name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5),
@@ -361,8 +324,9 @@ def chart_nino12(nino12_series: pd.Series, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-# ── CHART: SOI aligned comparison ────────────────────────────────────────────
-def chart_soi(include_plotlyjs=False) -> str:
+def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+    if show_events is None:
+        show_events = SHOW_EVENTS
     fig = go.Figure()
 
     for y, color, label in [
@@ -378,8 +342,9 @@ def chart_soi(include_plotlyjs=False) -> str:
                   line_width=1.5, annotation_text="now", annotation_position="top left")
 
     x = list(range(24))
-    for event, vals in _SOI_HIST.items():
+    for event in show_events:
         meta = ENSO_EVENTS[event]
+        vals = aligned_series(soi_series, meta["onset_yr"], 24)
         fig.add_trace(go.Scatter(x=x, y=vals, mode="lines+markers", name=event,
             line=dict(color=meta["color"], width=2), marker=dict(size=3), opacity=0.85))
 
@@ -396,7 +361,6 @@ def chart_soi(include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
-# ── CHART: Current Niño region bar ────────────────────────────────────────────
 def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False) -> str:
     latest = sst.iloc[-1]
     date   = sst.index[-1].strftime("%B %Y")
@@ -423,7 +387,6 @@ def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
-# ── CHART: Analogue ranking bar ───────────────────────────────────────────────
 def chart_analogues(analogues: list, include_plotlyjs=False) -> str:
     top    = analogues[:12]
     names  = [r["event"] for r in top]
@@ -448,9 +411,79 @@ def chart_analogues(analogues: list, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
-# ── HTML assembly ─────────────────────────────────────────────────────────────
+def chart_sst_comparison(sst_maps: list) -> str:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
+    cmap = plt.cm.RdBu_r
+    norm = mcolors.TwoSlopeNorm(vmin=-3, vcenter=0, vmax=3)
+    proj = ccrs.PlateCarree(central_longitude=180)
+    data_crs = ccrs.PlateCarree()
+
+    now = sst_maps[0]
+    pairs = [(now, sst_maps[1]), (now, sst_maps[2])]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 6.4),
+                             subplot_kw={"projection": proj}, facecolor="white")
+    fig.subplots_adjust(wspace=0.06, hspace=0.28, bottom=0.12)
+
+    im = None
+    for row, (left, right) in enumerate(pairs):
+        for col, m in enumerate([left, right]):
+            ax = axes[row, col]
+            ax.set_extent([110, 290, -35, 35], crs=data_crs)
+            im = ax.pcolormesh(m["data"]["lon"], m["data"]["lat"], m["data"]["ssta"],
+                               transform=data_crs, cmap=cmap, norm=norm,
+                               rasterized=True, zorder=0)
+            ax.add_feature(cfeature.LAND, facecolor="#D4C5A0", zorder=1)
+            ax.add_feature(cfeature.COASTLINE, linewidth=0.55, edgecolor="#666666", zorder=2)
+            ax.add_feature(cfeature.BORDERS, linewidth=0.3, edgecolor="#999999", zorder=2)
+            gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="gray", alpha=0.5, zorder=3)
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.left_labels = (col == 0)
+            gl.bottom_labels = (row == 1)
+            gl.xlabel_style = {"size": 8}
+            gl.ylabel_style = {"size": 8}
+            ax.set_title(m["label"], fontsize=10, pad=6, fontfamily="DejaVu Sans")
+
+    cbar_ax = fig.add_axes([0.2, 0.04, 0.6, 0.03])
+    cb = fig.colorbar(im, cax=cbar_ax, orientation="horizontal")
+    cb.set_label("SST anomaly (°C)", fontsize=9)
+    cb.ax.tick_params(labelsize=8)
+
+    buf = _io.BytesIO()
+    fig.savefig(buf, format="png", dpi=140, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return (f'<img src="data:image/png;base64,{b64}" '
+            f'style="width:100%;max-width:880px;display:block;margin:0 auto;" '
+            f'alt="SST anomaly comparison">')
+
+
+def _sst_maps_section(maps: list) -> str:
+    if not maps or not all(m["data"] is not None for m in maps):
+        return ""
+    img = chart_sst_comparison(maps)
+    return f"""
+  <p>The maps below show the full Pacific SST anomaly pattern at the same point in the event
+     cycle. Comparing the spatial footprint helps assess whether the warming is concentrated
+     in the east (EP) or spread toward the dateline (CP).</p>
+  <div class="cbox" style="padding:1rem .5rem .5rem;">
+    {img}
+    <p class="cnote">SST anomaly relative to 1991-2020 climatology. Source: NOAA ERSSTV5.</p>
+  </div>"""
+
+
 def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
-               analogues: list, cdn: bool = False) -> str:
+               analogues: list, *, cdn: bool = False,
+               sst_maps_oni: list = None, sst_maps_roni: list = None,
+               analogues_roni: list = None) -> str:
 
     latest      = sst.iloc[-1]
     latest_date = sst.index[-1].strftime("%B %Y")
@@ -465,7 +498,6 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     elif nv <= -0.5: phase, ph_col = "La Niña",             "#2980b9"
     else:            phase, ph_col = "Neutral",             "#7f8c8d"
 
-    # Forecast restoration: first month after observations where Niño-3.4 drops below +0.5
     _start = pd.Timestamp(2025, 7, 1)
     restore_str = "Unknown"
     for _i in range(N_OBS, len(NINO34_2026)):
@@ -473,20 +505,34 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
             restore_str = (_start + pd.DateOffset(months=_i)).strftime("%B %Y")
             break
 
-    # Generate all charts (Plotly JS loaded once in the first chart; CDN for deploy)
     pjs_mode   = "cdn" if cdn else True
     c_map      = chart_pacific_map(include_plotlyjs=pjs_mode)
-    c_nino34   = chart_nino34(sst["nino34_anom"])
-    c_nino12   = chart_nino12(sst["nino12_anom"])
-    c_soi      = chart_soi()
-    c_analogue = chart_analogues(analogues)
     c_oni_full = chart_oni_full(oni)
 
-    soi_latest     = float(soi_df["soi"].iloc[-1])
-    soi_date       = soi_df.index[-1].strftime("%B %Y")
-    ratio          = float(latest["nino12_anom"]) / max(abs(float(latest["nino4_anom"])), 0.1)
+    show_events_oni  = [r["event"] for r in analogues[:4]]
+    show_events_roni = [r["event"] for r in analogues_roni[:4]] if analogues_roni else SHOW_EVENTS
 
-    # Take-home messages
+    c_nino34_oni   = chart_nino34(sst["nino34_anom"], show_events=show_events_oni)
+    c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni)
+    c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni)
+    c_analogue_oni = chart_analogues(analogues)
+    sst_sec_oni    = _sst_maps_section(sst_maps_oni)
+
+    if analogues_roni:
+        c_nino34_roni   = chart_nino34(sst["nino34_anom"], show_events=show_events_roni)
+        c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni)
+        c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni)
+        c_analogue_roni = chart_analogues(analogues_roni)
+        sst_sec_roni    = _sst_maps_section(sst_maps_roni)
+        has_roni        = True
+    else:
+        c_nino34_roni = c_nino12_roni = c_soi_roni = c_analogue_roni = sst_sec_roni = ""
+        has_roni = False
+
+    soi_latest = float(soi_df["soi"].iloc[-1])
+    soi_date   = soi_df.index[-1].strftime("%B %Y")
+    ratio      = float(latest["nino12_anom"]) / max(abs(float(latest["nino4_anom"])), 0.1)
+
     if nv >= 2.0:
         cond_takehome = f"At {nv:+.2f} °C Niño-3.4 is in very strong El Niño territory, tracking alongside the most intense events on record."
     elif nv >= 1.5:
@@ -498,13 +544,25 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     else:
         cond_takehome = f"Conditions are currently neutral with Niño-3.4 at {nv:+.2f} °C. No El Niño declared."
 
-    ep_analogues  = [r for r in top3 if r["type"] == "EP"]
-    ep_note       = f" The nearest EP-type match is {ep_analogues[0]['event']}, which sets the upper bound on potential peak intensity." if ep_analogues else ""
-    analogue_takehome = f"Over the first 12 observed months, 2026 tracks most closely with {top3[0]['event']} (r = {top3[0]['score']:.2f}).{ep_note}"
+    roni_top    = analogues_roni[:3] if analogues_roni else []
+    roni1       = roni_top[0]["event"] if roni_top else "—"
+    roni1_score = roni_top[0]["score"] if roni_top else 0
+    shared      = {r["event"] for r in top3} & {r["event"] for r in roni_top}
+    shared_note = (f" {', '.join(sorted(shared))} {'appears' if len(shared)==1 else 'appear'} in both lists."
+                   if shared else " No event appears in both lists.")
+    analogue_takehome = (
+        f"Measured against the raw Niño-3.4 trajectory, 2026 tracks closest to {top3[0]['event']} "
+        f"(r = {top3[0]['score']:.2f}). When the long-term warming background is removed "
+        f"(RONI), the closest match shifts to {roni1} (r = {roni1_score:.2f}).{shared_note}"
+    ) if analogues_roni else (
+        f"Over the first 12 observed months, 2026 tracks most closely with {top3[0]['event']} "
+        f"(r = {top3[0]['score']:.2f})."
+    )
 
-    top3_html = ""
-    for r in top3:
-        top3_html += f"""
+    def _cards(ranks):
+        html = ""
+        for r in ranks:
+            html += f"""
         <div style="border:1px solid #e0e0e0;border-radius:3px;padding:1.1rem 1.25rem;background:#fff;">
           <div style="font-family:'Barlow',sans-serif;font-weight:600;font-size:.65rem;
                letter-spacing:.1em;text-transform:uppercase;padding:.15rem .5rem;
@@ -518,6 +576,53 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
           </div>
           <div style="font-size:.78rem;color:#777;margin-top:.2rem;">similarity: {r['score']:.2f}</div>
         </div>"""
+        return html
+
+    top3_html      = _cards(top3)
+    top3_roni_html = _cards(roni_top)
+
+    roni_view_html = f"""
+  <div id="view-roni" style="display:none;">
+    <p>The Relative ONI removes the tropical-mean warming trend before comparing events.
+       The closest RONI matches share a similar ENSO forcing pattern with 2026, independent
+       of the era they occurred in.</p>
+    <div class="grid">{top3_roni_html}</div>
+{sst_sec_roni}
+    <p>Niño-3.4 trajectories for the top RONI analogues. Older events show lower absolute values
+       due to the cooler mean state of their era; RONI isolates the shape of the forcing, not the level.</p>
+    <div class="cbox">
+      {c_nino34_roni}
+      <p class="cnote">Solid: observed. Dashed blue: forecast. Month 0 = July of precursor year.</p>
+    </div>
+    <p>Niño 1+2 for RONI analogues. The spatial pattern of eastern Pacific warming is what RONI
+       targets, so this region is particularly relevant for the comparison.</p>
+    <div class="cbox">
+      {c_nino12_roni}
+      <p class="cnote">Dashed blue estimated from Niño-3.4 forecast using typical EP scaling ratios.</p>
+    </div>
+    <p>SOI for RONI analogues. Atmospheric coupling is captured here regardless of background SST era.</p>
+    <div class="cbox">
+      {c_soi_roni}
+      <p class="cnote">El Niño threshold -8, La Niña +8. Source: NOAA CPC.</p>
+    </div>
+    <h2>Full analogue ranking (RONI)</h2>
+    <p class="takehome">RONI rankings often surface older events from the 1960s and 1970s. This is expected: stripped of the warming trend, those events look more like 2026 in terms of forcing pattern.</p>
+    <p>All confirmed El Niño events since 1950, ordered by RONI correlation with 2026.</p>
+    <div class="cbox">
+      {c_analogue_roni}
+      <p class="cnote">RONI removes the global warming trend from Niño-3.4 before ranking. Similarity captures forcing shape, not magnitude.</p>
+    </div>
+  </div>""" if has_roni else ""
+
+    toggle_html = f"""
+  <div class="toggle-row">
+    <button id="btn-oni"  class="btn-toggle active" onclick="switchView('oni')">ONI analogues</button>
+    <button id="btn-roni" class="btn-toggle"        onclick="switchView('roni')">RONI analogues</button>
+  </div>
+  <p style="font-size:.82rem;color:#666;margin-top:-.25rem;margin-bottom:1rem;">
+    ONI uses raw Niño-3.4 values. RONI removes the tropical warming trend to isolate the ENSO
+    forcing pattern. Toggle to compare which events each approach considers most similar to 2026.
+  </p>""" if has_roni else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -564,6 +669,12 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   footer{{text-align:center;padding:1.5rem;font-size:.78rem;color:#777;
           border-top:1px solid #e0e0e0;margin-top:2rem;
           font-family:"Barlow Condensed",sans-serif;letter-spacing:.06em;text-transform:uppercase;}}
+  .toggle-row{{display:flex;gap:.5rem;margin:1.25rem 0 .4rem;}}
+  .btn-toggle{{font-family:"Barlow Condensed",sans-serif;font-size:.85rem;letter-spacing:.06em;
+               text-transform:uppercase;padding:.35rem .9rem;border:1px solid #5BA8B0;
+               border-radius:2px;background:#fff;color:#5BA8B0;cursor:pointer;transition:background .15s,color .15s;}}
+  .btn-toggle.active{{background:#5BA8B0;color:#fff;}}
+  .btn-toggle:hover:not(.active){{background:#f0f8f9;}}
 </style>
 </head>
 <body>
@@ -589,7 +700,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
 
   <h2>How El Niño is monitored</h2>
-  <p class="takehome">Of all the indices tracked here, Niño-3.4 is the one that matters most. It needs to stay above +0.5 °C for five consecutive overlapping seasons before an El Niño is officially declared. The SOI acts as a cross-check: if the atmosphere has responded to the ocean warming, it will have turned sharply negative too.</p>
+  <p class="takehome">Of all the indices tracked here, Niño-3.4 is the one that matters most. It needs to stay above +0.5 °C for five consecutive overlapping seasons before an El Niño is officially declared. The Southern Oscillation Index (SOI), a measure of the atmospheric pressure difference between Tahiti and Darwin, acts as a cross-check: if the atmosphere has responded to the ocean warming, it will have turned sharply negative too.</p>
   <p>The four Niño regions are fixed boxes in the equatorial Pacific, each capturing a different
      slice of surface temperature. The SOI measures the pressure difference between
      <strong>Darwin</strong> and <strong>Tahiti</strong>. When that gradient reverses, trade winds
@@ -650,55 +761,48 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
   <h2>Historical analogues</h2>
   <p class="takehome">{analogue_takehome}</p>
-  <p>Each past event is aligned so that month 0 is July of its precursor year, placing every event
-     on the same calendar. The similarity score captures how closely the shape of the warming
-     matches 2026, not how intense it ultimately got.</p>
-  <div class="grid">{top3_html}</div>
-
-  <p>The chart below shows Niño-3.4 through the full 24-month window for the top analogues.
-     Through the observed period, 2026 has tracked between 2023-24 and 1997-98 in terms of
-     trajectory. The dashed blue line shows where the NOAA/IRI forecast takes it from here.
-     The key question is whether it follows the 2023-24 pattern and plateaus, or continues
-     accelerating toward the 1997-98 peak.</p>
-  <div class="cbox">
-    {c_nino34}
-    <p class="cnote">Solid lines: observed monthly Niño-3.4 anomaly. Dashed blue: NOAA/IRI forecast.
-    Month 0 = July of the precursor year.</p>
+  <p>Each past event is aligned so that month 0 is July of its precursor year. The similarity score
+     captures how closely the shape of the warming matches 2026, not how intense it ultimately got.</p>
+{toggle_html}
+  <div id="view-oni">
+    <p>The top ONI analogues are the events whose raw Niño-3.4 trajectory most closely matched
+       2026 over the first 12 months of the event cycle.</p>
+    <div class="grid">{top3_html}</div>
+{sst_sec_oni}
+    <p>Niño-3.4 through the full 24-month window for the top ONI analogues. Through the observed
+       period 2026 has tracked between 2023-24 and 1997-98. The dashed blue line shows where
+       the NOAA/IRI forecast takes it from here.</p>
+    <div class="cbox">
+      {c_nino34_oni}
+      <p class="cnote">Solid: observed. Dashed blue: NOAA/IRI forecast. Month 0 = July of precursor year.</p>
+    </div>
+    <p>Niño 1+2 captures the far eastern Pacific, just off Ecuador and Peru. In Eastern Pacific
+       events this region warms first and most sharply. The 2026 jump from -0.3 °C in March to
+       +1.81 °C in May is one of the fastest accelerations on record for this index, placing 2026
+       well above where 2023-24 was at the same stage.</p>
+    <div class="cbox">
+      {c_nino12_oni}
+      <p class="cnote">Dashed blue estimated from Niño-3.4 forecast using typical EP scaling ratios.</p>
+    </div>
+    <p>The SOI provides the atmospheric side of the story. When the SOI turns sharply negative,
+       trade winds weaken and warm water spreads east, amplifying the ocean anomaly through
+       Bjerknes feedback. The 2026 SOI has tracked close to the 1997-98 pattern, suggesting
+       coupling is already well established.</p>
+    <div class="cbox">
+      {c_soi_oni}
+      <p class="cnote">El Niño threshold -8, La Niña +8. Source: NOAA CPC.</p>
+    </div>
+    <h2>Full analogue ranking (ONI)</h2>
+    <p class="takehome">The top three analogues are far ahead of the rest, which tells you the 2026 trajectory is distinctive. Events ranked below 0.5 followed a different path from the start.</p>
+    <p>All confirmed El Niño events since 1950, ordered by how closely their first 12 months of
+       Niño-3.4 evolution match 2026.</p>
+    <div class="cbox">
+      {c_analogue_oni}
+      <p class="cnote">Similarity captures shape, not magnitude. EP/CP type and subsurface
+      precursors are separate dimensions not reflected here.</p>
+    </div>
   </div>
-
-  <p>Niño 1+2 captures the far eastern Pacific, just off Ecuador and Peru. In Eastern Pacific events
-     this region warms first and most sharply, often leading the Niño-3.4 signal by several months.
-     The 2026 jump from -0.3 °C in March to +1.81 °C in May is one of the fastest accelerations
-     on record for this index, and it places 2026 well above where 2023-24 was at the same stage.
-     That divergence is significant: it points toward an event with a stronger eastern signature,
-     closer to the 1997-98 footprint.</p>
-  <div class="cbox">
-    {c_nino12}
-    <p class="cnote">Dashed blue is estimated from the Niño-3.4 forecast using typical EP scaling ratios.</p>
-  </div>
-
-  <p>The SOI provides the atmospheric side of the story. A strong El Niño is not just warm ocean
-     temperatures. The atmosphere has to respond too. When the SOI turns sharply negative, trade winds
-     weaken, which allows warm water to spread east, which further weakens the winds. This
-     Bjerknes feedback is what turns an ocean anomaly into a full event. The 2026 SOI has been
-     tracking close to the 1997-98 pattern through the observed period, suggesting the coupling
-     is already well established.</p>
-  <div class="cbox">
-    {c_soi}
-    <p class="cnote">El Niño threshold is -8, La Niña is +8. Source: NOAA CPC.</p>
-  </div>
-
-
-  <h2>Full analogue ranking</h2>
-  <p class="takehome">The top three analogues are far ahead of the rest, which tells you the 2026 trajectory is distinctive. Events ranked below 0.5 followed a different path from the start and should be read as the outer envelope of uncertainty, not likely outcomes.</p>
-  <p>All confirmed El Niño events since 1950, ordered by how closely their first 12 months of
-     Niño-3.4 evolution match 2026.</p>
-  <div class="cbox">
-    {c_analogue}
-    <p class="cnote">Similarity captures shape, not magnitude. EP/CP type and subsurface
-    precursors are separate dimensions not reflected here.</p>
-  </div>
-
+{roni_view_html}
 
   <h2>What's coming</h2>
   <p class="takehome">The surface signal is now clear, but what happens next depends on heat stored below the thermocline. Three additional variables would sharpen the peak intensity forecast considerably.</p>
@@ -733,6 +837,8 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/soi" target="_blank">NOAA CPC: Standardised SOI</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, June 2026</a></li>
     <li><a href="https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/" target="_blank">IRI Columbia: ENSO Forecasts, June 2026</a></li>
+    <li><a href="https://www.ncei.noaa.gov/products/extended-reconstructed-sst" target="_blank">NOAA NCEI: Extended Reconstructed SST v5 (ERSSTV5)</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/" target="_blank">NOAA CPC: Relative Oceanic Niño Index (RONI)</a></li>
   </ul>
 
 </div>
@@ -740,5 +846,23 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 <footer>
   Data: NOAA CPC / {latest_date}
 </footer>
+<script>
+function switchView(v) {{
+  var oni  = document.getElementById('view-oni');
+  var roni = document.getElementById('view-roni');
+  var bOni  = document.getElementById('btn-oni');
+  var bRoni = document.getElementById('btn-roni');
+  oni.style.display  = v === 'oni'  ? '' : 'none';
+  roni.style.display = v === 'roni' ? '' : 'none';
+  bOni.classList.toggle('active',  v === 'oni');
+  bRoni.classList.toggle('active', v === 'roni');
+  var target = v === 'oni' ? oni : roni;
+  if (typeof Plotly !== 'undefined') {{
+    target.querySelectorAll('.plotly-graph-div').forEach(function(el) {{
+      Plotly.relayout(el, {{}});
+    }});
+  }}
+}}
+</script>
 </body>
 </html>"""
