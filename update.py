@@ -6,6 +6,25 @@ import sys
 from pathlib import Path
 
 
+_DEFAULT_FRONT_MATTER = """---
+layout: null
+title: "ENSO 2026 Tracker"
+excerpt: "Live tracker comparing 2026 El Niño conditions against every major ENSO event since 1950: Niño-3.4 SST anomaly, SOI, Kelvin waves, and analogue rankings updated with NOAA CPC data."
+date: 2026-07-13
+permalink: /portfolio/enso-tracker/
+category: "Data Science"
+tags:
+  - Climate
+  - ENSO
+  - El Niño
+  - SST
+  - NOAA
+  - Data Visualization
+redirect_from:
+  - /enso_tracker.html
+---"""
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--deploy", metavar="JEKYLL_REPO")
@@ -93,9 +112,20 @@ def main():
         if not repo.is_dir():
             print(f"Deploy path not found: {repo}", file=sys.stderr)
             sys.exit(1)
-        dest = repo / "portfolio" / "enso-tracker" / "index.html"
+        # The site serves this page from a Jekyll collection file that carries
+        # YAML front matter (layout, permalink, tags, ...). Preserve that front
+        # matter and only swap in the freshly generated HTML body.
+        dest = repo / "_portfolio" / "enso-tracker.html"
+        if dest.exists():
+            old = dest.read_text(encoding="utf-8")
+            if old.startswith("---"):
+                front = old[:old.index("\n---", 3) + 4]
+            else:
+                front = _DEFAULT_FRONT_MATTER
+        else:
+            front = _DEFAULT_FRONT_MATTER
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(out, dest)
+        dest.write_text(front + "\n" + html, encoding="utf-8")
         print(f"Deployed -> {dest}")
 
 
