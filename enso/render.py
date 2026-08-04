@@ -38,6 +38,21 @@ def _pjs(include):
     return include
 
 
+def _aligned_weekly(series: pd.Series, onset_yr: int, n: int = 24):
+    """Map weekly observations onto the same x axis the monthly charts use,
+    where x=0 is July of the precursor year and each unit is one month.
+    Mid-month dates land on fractional positions."""
+    start = pd.Timestamp(onset_yr - 1, 7, 1)
+    xs, ys = [], []
+    for date, val in series.dropna().items():
+        x = ((date.year - start.year) * 12 + date.month - start.month
+             + (date.day - 1) / date.days_in_month)
+        if 0 <= x <= n - 1:
+            xs.append(round(x, 3))
+            ys.append(round(float(val), 2))
+    return xs, ys
+
+
 
 def _rect(lat1, lat2, lon1, lon2, n=40):
     top    = ([lat1]*n,             list(np.linspace(lon1, lon2, n)))
@@ -205,7 +220,8 @@ def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=False,
+                 weekly_series: pd.Series = None) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
     fig = go.Figure()
@@ -235,8 +251,15 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
 
     obs_2026 = aligned_series(nino34_series, 2026, 24)
     fig.add_trace(go.Scatter(x=x, y=obs_2026, mode="lines+markers",
-        name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5),
+        name="2026-27 (monthly)", line=dict(color="#1e6fa5", width=3.5),
         marker=dict(size=5)))
+
+    if weekly_series is not None:
+        wx, wy = _aligned_weekly(weekly_series, 2026, 24)
+        if wx:
+            fig.add_trace(go.Scatter(x=wx, y=wy, mode="lines",
+                name="2026-27 (weekly)", line=dict(color="#1e6fa5", width=1.4, dash="dot"),
+                opacity=0.9, hovertemplate="weekly %{y:+.2f} °C<extra></extra>"))
 
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.1], **_YAXIS)
@@ -467,7 +490,7 @@ def _sst_maps_section(maps: list) -> str:
 def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                analogues: list, *, cdn: bool = False,
                sst_maps_oni: list = None, sst_maps_roni: list = None,
-               analogues_roni: list = None) -> str:
+               analogues_roni: list = None, weekly: pd.DataFrame = None) -> str:
 
     latest      = sst.iloc[-1]
     latest_date = sst.index[-1].strftime("%B %Y")
@@ -489,14 +512,17 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     show_events_oni  = [r["event"] for r in analogues[:4]]
     show_events_roni = [r["event"] for r in analogues_roni[:4]] if analogues_roni else SHOW_EVENTS
 
-    c_nino34_oni   = chart_nino34(sst["nino34_anom"], show_events=show_events_oni)
+    wk_n34         = weekly["nino34_anom"] if weekly is not None else None
+    c_nino34_oni   = chart_nino34(sst["nino34_anom"], show_events=show_events_oni,
+                                  weekly_series=wk_n34)
     c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni)
     c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni)
     c_analogue_oni = chart_analogues(analogues)
     sst_sec_oni    = _sst_maps_section(sst_maps_oni)
 
     if analogues_roni:
-        c_nino34_roni   = chart_nino34(sst["nino34_anom"], show_events=show_events_roni)
+        c_nino34_roni   = chart_nino34(sst["nino34_anom"], show_events=show_events_roni,
+                                       weekly_series=wk_n34)
         c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni)
         c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni)
         c_analogue_roni = chart_analogues(analogues_roni)
@@ -508,6 +534,37 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
     soi_latest = float(soi_df["soi"].iloc[-1])
     soi_date   = soi_df.index[-1].strftime("%B %Y")
+
+    # The monthly indices lag by up to five weeks. When the weekly product runs
+    # ahead of them, surface it so the page is not quoting a stale figure as
+    # "current".
+    weekly_box  = ""
+    weekly_note = ""
+    if weekly is not None and len(weekly):
+        wk_last = weekly.iloc[-1]
+        wk_date = weekly.index[-1]
+        if wk_date > sst.index[-1] + pd.offsets.MonthEnd(0):
+            wk_n34v = float(wk_last["nino34_anom"])
+            delta   = wk_n34v - nv
+            months_ahead = sorted({
+                d.strftime("%B %Y") for d in weekly.index
+                if d > sst.index[-1] + pd.offsets.MonthEnd(0)})
+            partial = ", ".join(months_ahead)
+            weekly_note = (f" The weekly product already covers {partial}; see below.")
+            weekly_box = f"""
+  <div class="infobox" style="border-left:3px solid #c0392b;">
+    <strong>Ahead of the monthly release.</strong>
+    CPC monthly indices are only current through {latest_date}, but the weekly
+    product runs to the week centred on <strong>{wk_date.strftime('%d %B %Y')}</strong>
+    and shows the event still strengthening. Latest weekly values:
+    Niño-3.4 <strong>{wk_n34v:+.2f} °C</strong>
+    ({delta:+.2f} °C vs the {latest_date} monthly mean),
+    Niño-1+2 {float(wk_last['nino12_anom']):+.2f} °C,
+    Niño-3 {float(wk_last['nino3_anom']):+.2f} °C,
+    Niño-4 {float(wk_last['nino4_anom']):+.2f} °C.
+    Weekly values are noisier than monthly means and are not used for the
+    analogue ranking or the ONI, both of which require full months.
+  </div>"""
     ratio      = float(latest["nino12_anom"]) / max(abs(float(latest["nino4_anom"])), 0.1)
 
     if nv >= 2.0:
@@ -673,7 +730,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 <div class="page">
 
   <div class="badge">{phase}</div>
-  <p>Data current through <strong>{latest_date}</strong>. Source: NOAA CPC.</p>
+  <p>Monthly data current through <strong>{latest_date}</strong>. Source: NOAA CPC.{weekly_note}</p>
 
 
   <h2>How El Niño is monitored</h2>
@@ -691,9 +748,9 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   <h2>Current conditions</h2>
   <p class="takehome">{cond_takehome}</p>
   <div class="grid">
-    <div class="card"><div class="lbl">Niño-3.4</div>
+    <div class="card"><div class="lbl">Niño-3.4 ({latest_date})</div>
       <div class="val">{latest['nino34_anom']:+.2f} °C</div>
-      <div class="note">Primary index / El Niño above +0.5 °C</div></div>
+      <div class="note">Primary index / monthly mean / El Niño above +0.5 °C</div></div>
     <div class="card"><div class="lbl">Niño-1+2</div>
       <div class="val">{latest['nino12_anom']:+.2f} °C</div>
       <div class="note">Far eastern Pacific</div></div>
@@ -710,6 +767,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
       <div class="val">63 %</div>
       <div class="note">NOAA CPC / NDJ 2026-27</div></div>
   </div>
+{weekly_box}
 
   <div class="infobox">
     Not all El Niños are the same. In an Eastern Pacific event the warmth sits off South America

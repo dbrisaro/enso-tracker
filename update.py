@@ -39,12 +39,24 @@ def main():
         print(f"Data fetch failed: {e}", file=sys.stderr)
         sys.exit(1)
 
+    try:
+        from enso.data import fetch_weekly_sst
+        weekly = fetch_weekly_sst()
+    except Exception as e:
+        print(f"Weekly SST fetch skipped: {e}")
+        weekly = None
+
     latest = sst.iloc[-1]
     print(f"Nino-3.4 : {latest['nino34_anom']:+.2f} C")
     print(f"Nino-1+2 : {latest['nino12_anom']:+.2f} C")
     print(f"Nino-4   : {latest['nino4_anom']:+.2f} C")
     print(f"SOI      : {soi_df['soi'].iloc[-1]:+.1f}")
-    print(f"As of    : {sst.index[-1].strftime('%B %Y')}")
+    print(f"As of    : {sst.index[-1].strftime('%B %Y')} (monthly)")
+    if weekly is not None:
+        wk = weekly.iloc[-1]
+        print(f"Weekly   : {weekly.index[-1].strftime('%d %b %Y')}  "
+              f"N3.4 {wk['nino34_anom']:+.2f}  N1+2 {wk['nino12_anom']:+.2f}  "
+              f"N3 {wk['nino3_anom']:+.2f}  N4 {wk['nino4_anom']:+.2f}")
 
     from enso.analogues import rank_analogues
     from enso.data import fetch_roni
@@ -100,7 +112,7 @@ def main():
     cdn = bool(args.deploy)
     html = build_html(sst, soi_df, oni, analogues, cdn=cdn,
                       sst_maps_oni=sst_maps_oni, sst_maps_roni=sst_maps_roni,
-                      analogues_roni=analogues_roni)
+                      analogues_roni=analogues_roni, weekly=weekly)
 
     out = Path("output/enso_tracker.html")
     out.parent.mkdir(exist_ok=True)

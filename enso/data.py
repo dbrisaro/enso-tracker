@@ -12,6 +12,9 @@ URLS = {
     "sst": "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices",
     "oni": "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
     "soi": "https://www.cpc.ncep.noaa.gov/data/indices/soi",
+    # 1991-2020 base period, matching sstoi.indices. The wksst8110.for file
+    # (1981-2010 base) is frozen at January 2021 and must not be used.
+    "wksst": "https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for",
 }
 
 ENSO_EVENTS = {
@@ -88,8 +91,20 @@ def fetch_oni() -> pd.DataFrame:
 
 
 def fetch_soi() -> pd.DataFrame:
+    # The CPC file stacks two tables: the Tahiti-Darwin pressure ANOMALY (in mb)
+    # first, then STANDARDIZED DATA. "SOI" conventionally means the standardized
+    # index, so drop everything before that header.
+    raw   = _get(URLS["soi"])
+    lines = raw.splitlines()
+    for i, line in enumerate(lines):
+        if "STANDARDIZED" in line.upper():
+            lines = lines[i + 1:]
+            break
+    else:
+        raise ValueError("SOI file: STANDARDIZED DATA section not found")
+
     rows = []
-    for line in _get(URLS["soi"]).splitlines():
+    for line in lines:
         line = line.strip()
         if len(line) < 4 or not line[:4].isdigit():
             continue
@@ -107,6 +122,42 @@ def fetch_soi() -> pd.DataFrame:
     df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
     s = df.set_index("date")["soi"].sort_index()
     return s[~s.index.duplicated(keep="first")].to_frame()
+
+
+def fetch_weekly_sst() -> pd.DataFrame:
+    """Weekly Nino-region SSTs and anomalies from CPC.
+
+    Column order in this file is Nino1+2, Nino3, Nino34, Nino4 -- note that
+    Nino34 and Nino4 are swapped relative to the monthly sstoi.indices file.
+    SST and SSTA run together when the anomaly is negative ("20.6-0.1"), so the
+    numbers have to be pulled out by regex rather than split on whitespace.
+    """
+    MONTHS = {m: i + 1 for i, m in enumerate(
+        ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+         "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"])}
+    head = re.compile(r"^\s*(\d{2})([A-Z]{3})(\d{4})\s+(.*)$")
+
+    rows = []
+    for line in _get(URLS["wksst"]).splitlines():
+        m = head.match(line)
+        if not m:
+            continue
+        day, mon, yr, rest = m.groups()
+        if mon not in MONTHS:
+            continue
+        nums = [float(v) for v in re.findall(r"-?\d+\.\d", rest)]
+        if len(nums) < 8:
+            continue
+        rows.append({
+            "date": pd.Timestamp(int(yr), MONTHS[mon], int(day)),
+            "nino12": nums[0], "nino12_anom": nums[1],
+            "nino3":  nums[2], "nino3_anom":  nums[3],
+            "nino34": nums[4], "nino34_anom": nums[5],
+            "nino4":  nums[6], "nino4_anom":  nums[7],
+        })
+    if not rows:
+        raise ValueError("weekly SST file: no data rows parsed")
+    return pd.DataFrame(rows).set_index("date").sort_index()
 
 
 def fetch_sst_anomaly_map(year: int, month: int) -> dict:
