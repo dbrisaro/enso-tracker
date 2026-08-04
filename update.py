@@ -46,11 +46,22 @@ def main():
         print(f"Weekly SST fetch skipped: {e}")
         weekly = None
 
+    try:
+        from enso.data import fetch_mei
+        mei = fetch_mei()
+    except Exception as e:
+        print(f"MEI fetch skipped: {e}")
+        mei = None
+
     latest = sst.iloc[-1]
     print(f"Nino-3.4 : {latest['nino34_anom']:+.2f} C")
     print(f"Nino-1+2 : {latest['nino12_anom']:+.2f} C")
     print(f"Nino-4   : {latest['nino4_anom']:+.2f} C")
     print(f"SOI      : {soi_df['soi'].iloc[-1]:+.1f}")
+    if mei is not None:
+        md = mei.index[-1]
+        seas = f"{(md - pd.DateOffset(months=1)).strftime('%b')}-{md.strftime('%b %Y')}"
+        print(f"MEI.v2   : {mei.iloc[-1]:+.2f}  ({seas})")
     print(f"As of    : {sst.index[-1].strftime('%B %Y')} (monthly)")
     if weekly is not None:
         wk = weekly.iloc[-1]
@@ -112,7 +123,7 @@ def main():
     cdn = bool(args.deploy)
     html = build_html(sst, soi_df, oni, analogues, cdn=cdn,
                       sst_maps_oni=sst_maps_oni, sst_maps_roni=sst_maps_roni,
-                      analogues_roni=analogues_roni, weekly=weekly)
+                      analogues_roni=analogues_roni, weekly=weekly, mei=mei)
 
     out = Path("output/enso_tracker.html")
     out.parent.mkdir(exist_ok=True)

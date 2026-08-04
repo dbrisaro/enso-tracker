@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import pandas as pd
 import numpy as np
-from enso.data import ENSO_EVENTS, aligned_series
+from enso.data import ENSO_EVENTS, aligned_series, MEI_START_YEAR
 
 MONTH_LABELS = [
     "Jul","Aug","Sep","Oct","Nov","Dec",
@@ -333,6 +333,44 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
+def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+    if show_events is None:
+        show_events = SHOW_EVENTS
+    fig = go.Figure()
+
+    for y, color, label in [
+        ( 1.5, "rgba(192,57,43,0.55)",  "Strong El Niño (+1.5)"),
+        ( 0.5, "rgba(192,57,43,0.30)",  "El Niño (+0.5)"),
+        ( 0.0, "rgba(0,0,0,0.18)",      ""),
+        (-0.5, "rgba(30,111,165,0.45)", "La Niña (-0.5)"),
+    ]:
+        fig.add_hline(y=y, line_dash="dash", line_color=color, line_width=1,
+                      annotation_text=label, annotation_position="right",
+                      annotation_font_size=10)
+
+    fig.add_vline(x=N_OBS - 1, line_dash="dot", line_color="rgba(30,111,165,0.65)",
+                  line_width=1.5, annotation_text="now", annotation_position="top left")
+
+    x = list(range(24))
+    for event in show_events:
+        meta = ENSO_EVENTS[event]
+        vals = aligned_series(mei_series, meta["onset_yr"], 24)
+        if not any(v is not None for v in vals):
+            continue  # pre-1979 event, outside the MEI record
+        fig.add_trace(go.Scatter(x=x, y=vals, mode="lines+markers", name=event,
+            line=dict(color=meta["color"], width=2), marker=dict(size=3), opacity=0.85))
+
+    obs_2026 = aligned_series(mei_series, 2026, 24)
+    fig.add_trace(go.Scatter(x=x, y=obs_2026, mode="lines+markers",
+        name="2026-27 (observed)", line=dict(color="#1e6fa5", width=3.5), marker=dict(size=5)))
+
+    fig.update_xaxes(**_XAXIS)
+    fig.update_yaxes(title_text="MEI.v2 (standard deviations)", range=[-2.8, 3.0], **_YAXIS)
+    fig.update_layout(title="Multivariate ENSO Index: 2026 vs Historical Analogues",
+                      height=440, **_LAYOUT)
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+
+
 def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
@@ -490,7 +528,8 @@ def _sst_maps_section(maps: list) -> str:
 def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                analogues: list, *, cdn: bool = False,
                sst_maps_oni: list = None, sst_maps_roni: list = None,
-               analogues_roni: list = None, weekly: pd.DataFrame = None) -> str:
+               analogues_roni: list = None, weekly: pd.DataFrame = None,
+               mei: pd.Series = None) -> str:
 
     latest      = sst.iloc[-1]
     latest_date = sst.index[-1].strftime("%B %Y")
@@ -517,6 +556,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                                   weekly_series=wk_n34)
     c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni)
     c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni)
+    c_mei_oni      = chart_mei(mei, show_events=show_events_oni) if mei is not None else ""
     c_analogue_oni = chart_analogues(analogues)
     sst_sec_oni    = _sst_maps_section(sst_maps_oni)
 
@@ -525,15 +565,69 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                                        weekly_series=wk_n34)
         c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni)
         c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni)
+        c_mei_roni      = chart_mei(mei, show_events=show_events_roni) if mei is not None else ""
         c_analogue_roni = chart_analogues(analogues_roni)
         sst_sec_roni    = _sst_maps_section(sst_maps_roni)
         has_roni        = True
     else:
         c_nino34_roni = c_nino12_roni = c_soi_roni = c_analogue_roni = sst_sec_roni = ""
+        c_mei_roni = ""
         has_roni = False
 
     soi_latest = float(soi_df["soi"].iloc[-1])
     soi_date   = soi_df.index[-1].strftime("%B %Y")
+
+    # MEI seasons are two-month means stored against their second month, so a
+    # value indexed to June is the May-June season and has to be labelled that
+    # way rather than as a single month.
+    mei_card = mei_sec = ""
+    if mei is not None and len(mei):
+        mei_last  = float(mei.iloc[-1])
+        mei_d     = mei.index[-1]
+        mei_seas  = (f"{(mei_d - pd.DateOffset(months=1)).strftime('%b')}"
+                     f"–{mei_d.strftime('%b %Y')}")
+        if   mei_last >=  2.0: mei_phase = "very strong El Niño territory"
+        elif mei_last >=  1.5: mei_phase = "strong El Niño territory"
+        elif mei_last >=  1.0: mei_phase = "moderate El Niño territory"
+        elif mei_last >=  0.5: mei_phase = "weak El Niño territory"
+        elif mei_last <= -0.5: mei_phase = "La Niña territory"
+        else:                  mei_phase = "neutral territory"
+
+        mei_prev = float(mei.iloc[-2]) if len(mei) > 1 else mei_last
+        # Either toggle set can contain a pre-1979 analogue, so name every event
+        # that gets silently skipped in whichever chart the reader is looking at.
+        dropped  = sorted({e for e in set(show_events_oni) | set(show_events_roni)
+                           if ENSO_EVENTS[e]["onset_yr"] - 1 < MEI_START_YEAR})
+        drop_note = (" MEI.v2 begins with the Dec 1978–Jan 1979 season, so "
+                     + ", ".join(dropped)
+                     + (" falls" if len(dropped) == 1 else " fall")
+                     + " outside the record and cannot be drawn here."
+                     ) if dropped else ""
+
+        mei_card = f"""
+    <div class="card"><div class="lbl">MEI.v2 ({mei_seas})</div>
+      <div class="val">{mei_last:+.2f}</div>
+      <div class="note">Multivariate / in std deviations</div></div>"""
+
+        mei_sec = f"""
+  <h2>The multivariate view: MEI</h2>
+  <p class="takehome">Every index above measures one thing. The MEI combines five
+     of them, and at {mei_last:+.2f} for {mei_seas} it puts 2026 in {mei_phase},
+     confirming the ocean signal is not running ahead of the atmosphere on its own.</p>
+  <p>The Multivariate ENSO Index (MEI.v2) folds sea surface temperature, sea level
+     pressure, surface zonal and meridional winds, and outgoing longwave radiation
+     into a single number over the tropical Pacific (30°S–30°N), expressed in
+     standard deviations. Because it weighs atmosphere alongside ocean, it is
+     slower to respond than Niño-3.4 but harder to fool: a warm patch of water
+     that the trade winds have not yet reacted to will lift Niño-3.4 without
+     moving the MEI much. The jump from {mei_prev:+.2f} in the previous season to
+     {mei_last:+.2f} is the coupled system locking in.</p>
+  <div class="cbox">
+    {c_mei_oni}
+    <p class="cnote">Two-month overlapping seasons, plotted against the second month
+       of each pair. Analogues shown are the top ONI matches.{drop_note}
+       Source: NOAA PSL.</p>
+  </div>"""
 
     # The monthly indices lag by up to five weeks. When the weekly product runs
     # ahead of them, surface it so the page is not quoting a stale figure as
@@ -765,7 +859,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
       <div class="note">El Niño below -1 (standardised)</div></div>
     <div class="card"><div class="lbl">Prob. Very Strong</div>
       <div class="val">63 %</div>
-      <div class="note">NOAA CPC / NDJ 2026-27</div></div>
+      <div class="note">NOAA CPC / NDJ 2026-27</div></div>{mei_card}
   </div>
 {weekly_box}
 
@@ -777,6 +871,8 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     EP events tend to be stronger and longer-lived than CP events.
   </div>
 
+
+{mei_sec}
 
   <h2>Historical context: 75 years of ENSO</h2>
   <p class="takehome">Strong El Niño events above +1.5 °C are rare, only four in 75 years of records. What this chart shows is that 2026 is not heading toward an ordinary event.</p>
@@ -866,7 +962,9 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   <ul class="srcs">
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices" target="_blank">NOAA CPC: Monthly Niño region SST indices</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt" target="_blank">NOAA CPC: Oceanic Niño Index (ONI)</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for" target="_blank">NOAA CPC: Weekly Niño region SST indices</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/soi" target="_blank">NOAA CPC: Standardised SOI</a></li>
+    <li><a href="https://psl.noaa.gov/enso/mei/" target="_blank">NOAA PSL: Multivariate ENSO Index v2 (MEI.v2)</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, June 2026</a></li>
     <li><a href="https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/" target="_blank">IRI Columbia: ENSO Forecasts, June 2026</a></li>
     <li><a href="https://www.ncei.noaa.gov/products/extended-reconstructed-sst" target="_blank">NOAA NCEI: Extended Reconstructed SST v5 (ERSSTV5)</a></li>

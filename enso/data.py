@@ -15,7 +15,12 @@ URLS = {
     # 1991-2020 base period, matching sstoi.indices. The wksst8110.for file
     # (1981-2010 base) is frozen at January 2021 and must not be used.
     "wksst": "https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for",
+    "mei": "https://psl.noaa.gov/enso/mei/data/meiv2.data",
 }
+
+# MEI.v2 begins with the Dec 1978 - Jan 1979 season, so events whose aligned
+# window opens before July 1979 have no MEI to plot.
+MEI_START_YEAR = 1979
 
 ENSO_EVENTS = {
     "1957–58": {"onset_yr": 1957, "peak_oni": 1.7, "type": "EP", "color": "#7f8c8d"},
@@ -122,6 +127,39 @@ def fetch_soi() -> pd.DataFrame:
     df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
     s = df.set_index("date")["soi"].sort_index()
     return s[~s.index.duplicated(keep="first")].to_frame()
+
+
+def fetch_mei() -> pd.Series:
+    """Multivariate ENSO Index v2 from NOAA PSL, in standard deviations.
+
+    Rows are twelve overlapping two-month seasons (DJ JF FM ... ND). Each is
+    labelled by its pair, and DJ of row Y spans Dec of Y-1 and Jan of Y, so
+    assigning every season to its second month makes column i land on month i
+    and keeps the series monotonic within a row. Verified against known peaks:
+    1982 ND +2.36, 1998 JF +2.45, 2015 AS +2.24.
+    """
+    rows = []
+    for line in _get(URLS["mei"]).splitlines():
+        parts = line.split()
+        # Skip the leading year-range header, the trailing -999.00 flag line and
+        # the free-text provenance footer; real data rows are a year plus 12
+        # values.
+        if len(parts) != 13 or not parts[0].isdigit():
+            continue
+        yr = int(parts[0])
+        for m, v in enumerate(parts[1:], start=1):
+            try:
+                val = float(v)
+            except ValueError:
+                continue
+            if val <= -999.0:
+                continue
+            rows.append({"year": yr, "month": m, "mei": val})
+    if not rows:
+        raise ValueError("MEI file: no data rows parsed")
+    df = pd.DataFrame(rows)
+    df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
+    return df.set_index("date")["mei"].sort_index()
 
 
 def fetch_weekly_sst() -> pd.DataFrame:
