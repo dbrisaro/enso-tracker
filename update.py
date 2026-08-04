@@ -47,6 +47,13 @@ def main():
         weekly = None
 
     try:
+        from enso.data import fetch_iri_plume
+        plume = fetch_iri_plume()
+    except Exception as e:
+        print(f"IRI plume fetch skipped: {e}")
+        plume = None
+
+    try:
         from enso.data import fetch_mei
         mei = fetch_mei()
     except Exception as e:
@@ -58,6 +65,12 @@ def main():
     print(f"Nino-1+2 : {latest['nino12_anom']:+.2f} C")
     print(f"Nino-4   : {latest['nino4_anom']:+.2f} C")
     print(f"SOI      : {soi_df['soi'].iloc[-1]:+.1f}")
+    if plume is not None:
+        pk = max((m, s) for m, s in zip(plume["oni_mean"], plume["seasons"])
+                 if m is not None)
+        print(f"IRI plume: issued {plume['issue_label']}, "
+              f"{plume['n_oni_models']} ONI models, peak {pk[0]:+.2f} C "
+              f"in {pk[1]['code']} {pk[1]['centre']:%Y}")
     if mei is not None:
         md = mei.index[-1]
         seas = f"{(md - pd.DateOffset(months=1)).strftime('%b')}-{md.strftime('%b %Y')}"
@@ -123,7 +136,7 @@ def main():
     cdn = bool(args.deploy)
     html = build_html(sst, soi_df, oni, analogues, cdn=cdn,
                       sst_maps_oni=sst_maps_oni, sst_maps_roni=sst_maps_roni,
-                      analogues_roni=analogues_roni, weekly=weekly, mei=mei)
+                      analogues_roni=analogues_roni, weekly=weekly, mei=mei, plume=plume)
 
     out = Path("output/enso_tracker.html")
     out.parent.mkdir(exist_ok=True)

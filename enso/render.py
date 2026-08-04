@@ -54,6 +54,17 @@ def _aligned_weekly(series: pd.Series, onset_yr: int, n: int = 24):
 
 
 
+def _now_x(series: pd.Series, onset_yr: int = 2026, n: int = 24) -> float:
+    """x position of the most recent observed month, for the "now" marker.
+
+    Derived from the data rather than from a fixed N_OBS, which silently went
+    stale each time CPC published a new month.
+    """
+    vals = aligned_series(series, onset_yr, n)
+    last = max((i for i, v in enumerate(vals) if v is not None), default=N_OBS - 1)
+    return last
+
+
 def _rect(lat1, lat2, lon1, lon2, n=40):
     top    = ([lat1]*n,             list(np.linspace(lon1, lon2, n)))
     right  = (list(np.linspace(lat1, lat2, n)), [lon2]*n)
@@ -163,7 +174,7 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
+def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False, return_fig=False) -> str:
     fig = go.Figure()
 
     dates = oni.index.tolist()
@@ -217,13 +228,31 @@ def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False) -> str:
         margin=dict(l=60, r=20, t=80, b=50),
         font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
     )
+    if return_fig:
+        return fig
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
+def _plume_xy(plume, onset_yr=2026):
+    """Place each forecast season on the monthly x axis at its centre month."""
+    start = pd.Timestamp(onset_yr - 1, 7, 1)
+    xs, mu, lo, hi = [], [], [], []
+    for s, m, a, b in zip(plume["seasons"], plume["oni_mean"],
+                          plume["oni_min"], plume["oni_max"]):
+        if m is None:
+            continue
+        c = s["centre"]
+        xs.append((c.year - start.year) * 12 + c.month - start.month)
+        mu.append(m); lo.append(a); hi.append(b)
+    return xs, mu, lo, hi
+
+
 def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=False,
-                 weekly_series: pd.Series = None) -> str:
+                 weekly_series: pd.Series = None, plume: dict = None,
+                 return_fig=False) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
+    _now_series = nino34_series
     fig = go.Figure()
 
     for y, color, label in [
@@ -235,7 +264,7 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
                       annotation_text=label, annotation_position="right",
                       annotation_font_size=10)
 
-    fig.add_vline(x=N_OBS - 1, line_dash="dot", line_color="rgba(30,111,165,0.65)",
+    fig.add_vline(x=_now_x(_now_series), line_dash="dot", line_color="rgba(30,111,165,0.65)",
                   line_width=1.5, annotation_text="now", annotation_position="top left")
 
     x = list(range(24))
@@ -261,16 +290,41 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
                 name="2026-27 (weekly)", line=dict(color="#1e6fa5", width=1.4, dash="dot"),
                 opacity=0.9, hovertemplate="weekly %{y:+.2f} °C<extra></extra>"))
 
+    if plume is not None:
+        px, pmu, plo, phi = _plume_xy(plume)
+        if px:
+            # Anchor the plume to the last observed month so the forecast reads as
+            # a continuation rather than a floating segment.
+            last_x = len(obs_2026) - 1
+            while last_x >= 0 and obs_2026[last_x] is None:
+                last_x -= 1
+            anchor_x = [last_x] if last_x >= 0 else []
+            anchor_y = [obs_2026[last_x]] if last_x >= 0 else []
+
+            fig.add_trace(go.Scatter(
+                x=px + px[::-1], y=phi + plo[::-1], fill="toself",
+                fillcolor="rgba(181,23,158,0.12)", line=dict(width=0),
+                mode="none", name="IRI model spread", hoverinfo="skip"))
+            fig.add_trace(go.Scatter(
+                x=anchor_x + px, y=anchor_y + pmu, mode="lines+markers",
+                name=f"IRI plume ({plume['issue_label']})",
+                line=dict(color="#b5179e", width=2.6, dash="dash"),
+                marker=dict(size=5, symbol="diamond"),
+                hovertemplate="forecast %{y:+.2f} °C<extra></extra>"))
+
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.1], **_YAXIS)
     fig.update_layout(title="Niño-3.4 SST Anomaly: 2026 vs Historical Analogues",
                       height=440, **_LAYOUT)
+    if return_fig:
+        return fig
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
-def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=False, return_fig=False) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
+    _now_series = nino12_series
     fig = go.Figure()
 
     for y, color, label in [
@@ -283,7 +337,7 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
                       annotation_text=label, annotation_position="right",
                       annotation_font_size=10)
 
-    fig.add_vline(x=N_OBS - 1, line_dash="dot", line_color="rgba(30,111,165,0.65)",
+    fig.add_vline(x=_now_x(_now_series), line_dash="dot", line_color="rgba(30,111,165,0.65)",
                   line_width=1.5, annotation_text="now", annotation_position="top left")
 
     x = list(range(24))
@@ -330,12 +384,15 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
         title="Niño 1+2 SST Anomaly: 2026 vs All Events Since 1950",
         height=460, **_LAYOUT,
     )
+    if return_fig:
+        return fig
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
 def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
+    _now_series = mei_series
     fig = go.Figure()
 
     for y, color, label in [
@@ -348,7 +405,7 @@ def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -
                       annotation_text=label, annotation_position="right",
                       annotation_font_size=10)
 
-    fig.add_vline(x=N_OBS - 1, line_dash="dot", line_color="rgba(30,111,165,0.65)",
+    fig.add_vline(x=_now_x(_now_series), line_dash="dot", line_color="rgba(30,111,165,0.65)",
                   line_width=1.5, annotation_text="now", annotation_position="top left")
 
     x = list(range(24))
@@ -374,6 +431,7 @@ def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -
 def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
+    _now_series = soi_series
     fig = go.Figure()
 
     for y, color, label in [
@@ -385,7 +443,7 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
                       annotation_text=label, annotation_position="right",
                       annotation_font_size=10)
 
-    fig.add_vline(x=N_OBS - 1, line_dash="dot", line_color="rgba(30,111,165,0.65)",
+    fig.add_vline(x=_now_x(_now_series), line_dash="dot", line_color="rgba(30,111,165,0.65)",
                   line_width=1.5, annotation_text="now", annotation_position="top left")
 
     x = list(range(24))
@@ -529,7 +587,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                analogues: list, *, cdn: bool = False,
                sst_maps_oni: list = None, sst_maps_roni: list = None,
                analogues_roni: list = None, weekly: pd.DataFrame = None,
-               mei: pd.Series = None) -> str:
+               mei: pd.Series = None, plume: dict = None) -> str:
 
     latest      = sst.iloc[-1]
     latest_date = sst.index[-1].strftime("%B %Y")
@@ -553,7 +611,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
     wk_n34         = weekly["nino34_anom"] if weekly is not None else None
     c_nino34_oni   = chart_nino34(sst["nino34_anom"], show_events=show_events_oni,
-                                  weekly_series=wk_n34)
+                                  weekly_series=wk_n34, plume=plume)
     c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni)
     c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni)
     c_mei_oni      = chart_mei(mei, show_events=show_events_oni) if mei is not None else ""
@@ -562,7 +620,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
     if analogues_roni:
         c_nino34_roni   = chart_nino34(sst["nino34_anom"], show_events=show_events_roni,
-                                       weekly_series=wk_n34)
+                                       weekly_series=wk_n34, plume=plume)
         c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni)
         c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni)
         c_mei_roni      = chart_mei(mei, show_events=show_events_roni) if mei is not None else ""
@@ -576,6 +634,28 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 
     soi_latest = float(soi_df["soi"].iloc[-1])
     soi_date   = soi_df.index[-1].strftime("%B %Y")
+
+    # Describe the forecast from the plume that is actually loaded. These two
+    # captions previously claimed a dashed forecast line that had been removed
+    # from the data pipeline, so they must stay derived rather than hardcoded.
+    if plume is not None and any(v is not None for v in plume["oni_mean"]):
+        pairs      = [(m, s) for m, s in zip(plume["oni_mean"], plume["seasons"])
+                      if m is not None]
+        peak, pks  = max(pairs, key=lambda t: t[0])
+        fc_note    = (f"Solid: observed monthly. Dotted: weekly observations. "
+                      f"Dashed magenta: IRI plume issued {plume['issue_label']}, "
+                      f"ensemble mean of {plume['n_oni_models']} dynamical and "
+                      f"statistical models by three-month season, shaded to the "
+                      f"full model range.")
+        fc_sentence = (f"The dashed magenta line is the IRI forecast plume issued "
+                       f"{plume['issue_label']}, averaged over "
+                       f"{plume['n_oni_models']} dynamical and statistical models. "
+                       f"It peaks at {peak:+.2f} °C in {pks['code']} "
+                       f"{pks['centre']:%Y}. Relative-ONI models are excluded, "
+                       f"since they sit on a different baseline.")
+    else:
+        fc_note     = "Solid: observed monthly. Dotted: weekly observations."
+        fc_sentence = "No forecast plume is loaded for this build."
 
     # MEI seasons are two-month means stored against their second month, so a
     # value indexed to June is the May-June season and has to be labelled that
@@ -720,7 +800,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        due to the cooler mean state of their era; RONI isolates the shape of the forcing, not the level.</p>
     <div class="cbox">
       {c_nino34_roni}
-      <p class="cnote">Solid: observed. Dashed blue: forecast. Month 0 = July of precursor year.</p>
+      <p class="cnote">{fc_note} Month 0 = July of precursor year.</p>
     </div>
     <p>Niño 1+2 for RONI analogues. The spatial pattern of eastern Pacific warming is what RONI
        targets, so this region is particularly relevant for the comparison.</p>
@@ -898,8 +978,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <div class="grid">{top3_html}</div>
 {sst_sec_oni}
     <p>Niño-3.4 through the full 24-month window for the top ONI analogues. Through the observed
-       period 2026 has tracked between 2023-24 and 1997-98. The dashed blue line shows where
-       the NOAA/IRI forecast takes it from here.</p>
+       period 2026 has tracked between 2023-24 and 1997-98. {fc_sentence}</p>
     <div class="cbox">
       {c_nino34_oni}
       <p class="cnote">Observed monthly data. Month 0 = July of precursor year. Source: NOAA CPC.</p>

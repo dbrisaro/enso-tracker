@@ -3,3 +3,10 @@ pandas>=2.0.0
 numpy>=1.26.0
 plotly>=5.18.0
 jinja2>=3.1.0
+
+# export_newsletter.py only. Kaleido 1.x cannot serialise Plotly 5.x date axes
+# and writes nothing without raising, which export_newsletter.py works around in
+# _dates_to_str(); either pin kaleido==0.2.1 or move to plotly>=6.1.1 to drop
+# that workaround.
+kaleido
+pillow>=10.0.0
