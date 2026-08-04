@@ -232,17 +232,24 @@ def fetch_iri_plume(year: int = None, month: int = None, back: int = 6) -> dict:
                         "start": start, "centre": centre})
 
     oni_types = ("Dynamical", "Statistical")
-    mean, lo, hi, counts = [], [], [], []
+    mean, lo, hi, q25, q75, counts = [], [], [], [], [], []
     for k in range(n):
         vals = [v["data"][k] for v in models.values()
                 if v["type"] in oni_types and v["data"][k] is not None]
         counts.append(len(vals))
         if vals:
-            mean.append(round(sum(vals) / len(vals), 3))
-            lo.append(round(min(vals), 3))
-            hi.append(round(max(vals), 3))
+            a = np.array(vals)
+            mean.append(round(float(a.mean()), 3))
+            lo.append(round(float(a.min()), 3))
+            hi.append(round(float(a.max()), 3))
+            # The full envelope reaches well past the chart's y range and is
+            # driven by one or two extreme members, so the interquartile band is
+            # what gets shaded; min and max stay available for the caption.
+            q25.append(round(float(np.percentile(a, 25)), 3))
+            q75.append(round(float(np.percentile(a, 75)), 3))
         else:
-            mean.append(None); lo.append(None); hi.append(None)
+            for lst in (mean, lo, hi, q25, q75):
+                lst.append(None)
 
     observed = [{"label": o["month"], "value": float(o["data"])}
                 for o in payload.get("observed", [])]
@@ -252,6 +259,7 @@ def fetch_iri_plume(year: int = None, month: int = None, back: int = 6) -> dict:
         "issue_label": pd.Timestamp(iy, im, 1).strftime("%B %Y"),
         "seasons": seasons, "models": models,
         "oni_mean": mean, "oni_min": lo, "oni_max": hi,
+        "oni_q25": q25, "oni_q75": q75,
         "n_models": counts,
         "n_oni_models": sum(1 for v in models.values() if v["type"] in oni_types),
         "observed": observed,

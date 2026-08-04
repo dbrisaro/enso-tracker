@@ -21,13 +21,34 @@ SCALE   = 3
 # flattened onto white.
 BG = (255, 255, 255)
 
+# ---------------------------------------------------------------------------
+# Style knobs. Sizes are in the logical units passed to kaleido, not in output
+# pixels, so they read the same way as the sizes in enso/render.py (base 12,
+# analogue lines 2, the 2026 line 3.5). They sit a little above those because
+# these exports are viewed smaller than the web page, not because they need to
+# be heavy. Turn them down here rather than in the per-image blocks below.
+# ---------------------------------------------------------------------------
+FONTS = {
+    "cover":  dict(base=15, title=21, annot=15, legend=14),
+    "inline": dict(base=14, title=19, annot=13, legend=13),
+}
+LINES = dict(
+    analogue = 1.5,
+    observed = 2.6,
+    weekly   = 1.5,
+    plume    = 2.0,
+    marker   = 5,
+)
 
-def _restyle(fig, *, base, title, annot, margin):
-    """Enlarge every font on the figure and widen the margins to match."""
+
+def _restyle(fig, kind, *, margin):
+    """Apply the FONTS entry for this image kind and set the margins."""
+    f = FONTS[kind]
+    base, title, annot = f["base"], f["title"], f["annot"]
     fig.update_layout(
         font=dict(size=base),
         title=dict(font=dict(size=title)),
-        legend=dict(font=dict(size=base)),
+        legend=dict(font=dict(size=f["legend"])),
         margin=margin,
         plot_bgcolor="white",
         paper_bgcolor="white",
@@ -122,33 +143,41 @@ def main():
     # Strict 16:9. LinkedIn crops the article cover to that ratio, and a
     # different aspect would cut the peak annotations off.
     fig = render.chart_oni_full(oni, return_fig=True)
-    _restyle(fig, base=26, title=38, annot=30,
-             margin=dict(l=140, r=100, t=175, b=120))
+    _restyle(fig, "cover", margin=dict(l=95, r=70, t=115, b=85))
     fig.update_layout(
         title=dict(text="ENSO since 1950: four events stand apart", x=0.5,
-                   xanchor="center", y=0.955, yanchor="top"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.005,
+                   xanchor="center", y=0.972, yanchor="top"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.008,
                     xanchor="center", x=0.5),
     )
+    for tr in fig.data:
+        if tr.name == "ONI":
+            tr.line.width = 1.1
+    # The peak labels are offset in data units, so at this font size their box
+    # sits low enough for the trace to run through the text. Anchor them above
+    # the point instead.
+    for a in fig.layout.annotations:
+        a.yanchor = "bottom"
+        a.yshift  = 4
     _dates_to_str(fig)
     _write(fig, "01-cover-oni-1950-2026.png", 1920, 1080, label="16:9 article cover")
 
     # --- Image 2, Niño-1+2 ------------------------------------------------
     fig = render.chart_nino12(sst["nino12_anom"], show_events=show_oni, return_fig=True)
-    _restyle(fig, base=23, title=31, annot=22,
-             margin=dict(l=115, r=195, t=175, b=100))
+    _restyle(fig, "inline", margin=dict(l=72, r=125, t=105, b=68))
     fig.update_layout(
-        title=dict(y=0.975, yanchor="top", x=0.5, xanchor="center"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.015,
-                    xanchor="center", x=0.5, font=dict(size=20)),
+        title=dict(y=0.972, yanchor="top", x=0.5, xanchor="center"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01,
+                    xanchor="center", x=0.5),
     )
     for tr in fig.data:
         if tr.name and "2026" in tr.name:
-            tr.line.width = 7.5
+            tr.line.width = LINES["observed"]
             tr.line.color = "#0d3d66"
+            tr.mode = "lines"
         elif tr.line is not None and tr.line.width:
-            tr.line.width = 3
-            tr.marker.size = 0
+            tr.line.width = LINES["analogue"]
+            tr.mode = "lines"
     _write(fig, "02-nino12-acceleration.png", 1200, 700, label="inline, free ratio")
 
     # --- Image 3, Niño-3.4 24-month trajectories --------------------------
@@ -168,39 +197,38 @@ def main():
         fig = render.chart_nino34(sst["nino34_anom"], show_events=show_oni,
                                   weekly_series=weekly["nino34_anom"],
                                   plume=plume, return_fig=True)
-        _restyle(fig, base=23, title=31, annot=22,
-                 margin=dict(l=115, r=205, t=215, b=100))
+        _restyle(fig, "inline", margin=dict(l=72, r=140, t=132, b=68))
         fig.update_layout(
-            title=dict(y=0.975, yanchor="top", x=0.5, xanchor="center"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.015,
-                        xanchor="center", x=0.5, font=dict(size=20),
-                        tracegroupgap=0),
+            title=dict(y=0.972, yanchor="top", x=0.5, xanchor="center"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.01,
+                        xanchor="center", x=0.5, tracegroupgap=0),
         )
         style = iter(zip(GREYS, DASHES))
         for tr in fig.data:
             if tr.name and "weekly" in tr.name:
-                tr.line.width = 4.5
+                tr.line.width = LINES["weekly"]
                 tr.line.color = "#e8590c"
                 tr.line.dash  = "dot"
                 tr.opacity    = 1.0
             elif tr.name and "monthly" in tr.name:
-                tr.line.width = 7.5
+                tr.line.width = LINES["observed"]
                 tr.line.color = "#0d3d66"
+                tr.mode = "lines"
             elif tr.name and "IRI plume" in tr.name:
-                tr.line.width  = 5.5
+                tr.line.width  = LINES["plume"]
                 tr.line.color  = "#b5179e"
                 tr.line.dash   = "dash"
-                tr.marker.size = 12
+                tr.marker.size = LINES["marker"]
                 tr.marker.color = "#b5179e"
-            elif tr.name and "spread" in tr.name:
+            elif tr.name and "middle 50%" in tr.name:
                 tr.fillcolor = "rgba(181,23,158,0.11)"
             elif tr.line is not None and tr.line.width:
                 col, dsh = next(style, ("#b0b0b0", "solid"))
-                tr.line.width = 3.2
+                tr.line.width = LINES["analogue"]
                 tr.line.color = col
                 tr.line.dash  = dsh
                 tr.opacity    = 0.95
-                tr.marker.size = 0
+                tr.mode       = "lines"
         return _write(fig, name, width, height, label=label)
 
     _nino34(1200, 700, "03-nino34-24month.png", label="inline, free ratio")
@@ -260,7 +288,7 @@ def _sst_composite(sst, analogues, analogues_roni, fetch_map):
     px_w   = pw * W
     px_h   = px_w / aspect
     # furniture: panel title + subtitle above, colourbar + source note below
-    TOP_PX, BOT_PX = 96, 196
+    TOP_PX, BOT_PX = 78, 158
     H = int(round(px_h + TOP_PX + BOT_PX))
 
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100 * SCALE, facecolor="white")
@@ -276,24 +304,24 @@ def _sst_composite(sst, analogues, analogues_roni, fetch_map):
                            transform=data_crs, cmap=plt.cm.RdBu_r, norm=norm,
                            rasterized=True, zorder=0)
         ax.add_feature(cfeature.LAND, facecolor="#D4C5A0", zorder=1)
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.6, edgecolor="#666666", zorder=2)
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.45, edgecolor="#666666", zorder=2)
         gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="gray",
                           alpha=0.5, zorder=3)
         gl.top_labels = gl.right_labels = False
         gl.left_labels = (i == 0)
-        gl.xlabel_style = gl.ylabel_style = {"size": 9}
-        ax.set_title(p["label"], fontsize=16, fontweight="bold", pad=26)
+        gl.xlabel_style = gl.ylabel_style = {"size": 7.5}
+        ax.set_title(p["label"], fontsize=13, fontweight="bold", pad=22)
         ax.text(0.5, 1.015, p["sub"], transform=ax.transAxes, ha="center",
-                va="bottom", fontsize=11, color="#444444")
+                va="bottom", fontsize=9.5, color="#444444")
 
     cax = fig.add_axes([0.30, 92 / H, 0.40, 24 / H])
     cb  = fig.colorbar(im, cax=cax, orientation="horizontal", extend="both")
     # Label above the bar, ticks below it, so neither can land on the source note.
     cb.ax.xaxis.set_label_position("top")
-    cb.set_label("SST anomaly (°C), shared scale", fontsize=11.5, labelpad=9)
-    cb.ax.tick_params(labelsize=10.5)
+    cb.set_label("SST anomaly (°C), shared scale", fontsize=9.5, labelpad=8)
+    cb.ax.tick_params(labelsize=8.5)
     fig.text(0.5, 22 / H, "ERSSTv5 anomaly relative to 1991-2020. Source: NOAA NCEI.",
-             ha="center", fontsize=10, color="#666666")
+             ha="center", fontsize=8.5, color="#666666")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUT_DIR / "04-sst-maps-oni-vs-roni.png"

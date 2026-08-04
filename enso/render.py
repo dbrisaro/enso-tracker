@@ -238,7 +238,7 @@ def _plume_xy(plume, onset_yr=2026):
     start = pd.Timestamp(onset_yr - 1, 7, 1)
     xs, mu, lo, hi = [], [], [], []
     for s, m, a, b in zip(plume["seasons"], plume["oni_mean"],
-                          plume["oni_min"], plume["oni_max"]):
+                          plume["oni_q25"], plume["oni_q75"]):
         if m is None:
             continue
         c = s["centre"]
@@ -304,7 +304,7 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
             fig.add_trace(go.Scatter(
                 x=px + px[::-1], y=phi + plo[::-1], fill="toself",
                 fillcolor="rgba(181,23,158,0.12)", line=dict(width=0),
-                mode="none", name="IRI model spread", hoverinfo="skip"))
+                mode="none", name="IRI middle 50% of models", hoverinfo="skip"))
             fig.add_trace(go.Scatter(
                 x=anchor_x + px, y=anchor_y + pmu, mode="lines+markers",
                 name=f"IRI plume ({plume['issue_label']})",
@@ -313,7 +313,7 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
                 hovertemplate="forecast %{y:+.2f} °C<extra></extra>"))
 
     fig.update_xaxes(**_XAXIS)
-    fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.1], **_YAXIS)
+    fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.5], **_YAXIS)
     fig.update_layout(title="Niño-3.4 SST Anomaly: 2026 vs Historical Analogues",
                       height=440, **_LAYOUT)
     if return_fig:
@@ -645,14 +645,21 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
         fc_note    = (f"Solid: observed monthly. Dotted: weekly observations. "
                       f"Dashed magenta: IRI plume issued {plume['issue_label']}, "
                       f"ensemble mean of {plume['n_oni_models']} dynamical and "
-                      f"statistical models by three-month season, shaded to the "
-                      f"full model range.")
+                      f"statistical models by three-month season, shaded across "
+                      f"the middle 50% of members.")
+        pk_i    = plume["oni_mean"].index(peak)
+        full_lo = plume["oni_min"][pk_i]
+        full_hi = plume["oni_max"][pk_i]
         fc_sentence = (f"The dashed magenta line is the IRI forecast plume issued "
                        f"{plume['issue_label']}, averaged over "
                        f"{plume['n_oni_models']} dynamical and statistical models. "
                        f"It peaks at {peak:+.2f} °C in {pks['code']} "
-                       f"{pks['centre']:%Y}. Relative-ONI models are excluded, "
-                       f"since they sit on a different baseline.")
+                       f"{pks['centre']:%Y}, where individual members run from "
+                       f"{full_lo:+.2f} to {full_hi:+.2f} °C. The shaded band is "
+                       f"the middle 50% of members, not that full range, which "
+                       f"one or two outliers would otherwise dominate. "
+                       f"Relative-ONI models are excluded, since they sit on a "
+                       f"different baseline.")
     else:
         fc_note     = "Solid: observed monthly. Dotted: weekly observations."
         fc_sentence = "No forecast plume is loaded for this build."
