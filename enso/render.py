@@ -933,7 +933,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 {roni_view_html}
 
   <h2>What's coming</h2>
-  <p class="takehome">The surface signal is now clear, but what happens next depends on heat stored below the thermocline. Three additional variables would sharpen the peak intensity forecast considerably.</p>
+  <p class="takehome">The surface signal is now clear, but what happens next depends on heat stored below the thermocline. Two additional variables would sharpen the peak intensity forecast considerably.</p>
 
   <div class="alert ag">
     <strong>Kelvin waves (subsurface):</strong> three downwelling Kelvin waves in late 2025 and early
@@ -946,16 +946,6 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     5S-5N, 120E-80W predicts peak intensity months in advance and is available at NOAA PMEL.
   </div>
 
-  <div class="alert ag">
-    <strong>OLR (Outgoing Longwave Radiation):</strong> negative OLR anomalies over the western
-    Pacific warm pool confirm that convection has coupled to the SST anomaly, closing the
-    Bjerknes feedback loop.
-  </div>
-
-  <div class="alert aw">
-    <strong>AMJ 2026 ONI:</strong> the April-May-June running mean will be the first seasonal
-    value fully within El Niño territory and will sharpen the intensity estimate.
-  </div>
 
 
   <h2>Sources</h2>
