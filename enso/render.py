@@ -20,9 +20,13 @@ SHOW_EVENTS = ["1997–98", "2015–16", "1982–83", "2023–24"]
 _LAYOUT = dict(
     plot_bgcolor="white", paper_bgcolor="white",
     hovermode="x unified",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    # The legend sits below the x axis rather than above the plot. Above, it
+    # shares a band with the title and grows upward into it as it wraps, which
+    # it now does: the IRI plume added two entries, and a narrow viewport wraps
+    # further. Below, it has margin.autoexpand to grow into instead.
+    legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
     font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
-    margin=dict(l=60, r=90, t=80, b=60),
+    margin=dict(l=60, r=90, t=60, b=70),
 )
 _XAXIS = dict(
     tickmode="array",
@@ -315,7 +319,7 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="Niño-3.4 anomaly (°C)", range=[-1.6, 3.5], **_YAXIS)
     fig.update_layout(title="Niño-3.4 SST Anomaly: 2026 vs Historical Analogues",
-                      height=440, **_LAYOUT)
+                      height=490, **_LAYOUT)
     if return_fig:
         return fig
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
@@ -382,7 +386,7 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
     fig.update_yaxes(title_text="Niño-1+2 anomaly (°C)", range=[-2.5, 5.5], **_YAXIS)
     fig.update_layout(
         title="Niño 1+2 SST Anomaly: 2026 vs All Events Since 1950",
-        height=460, **_LAYOUT,
+        height=510, **_LAYOUT,
     )
     if return_fig:
         return fig
@@ -424,7 +428,7 @@ def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="MEI.v2 (standard deviations)", range=[-2.8, 3.0], **_YAXIS)
     fig.update_layout(title="Multivariate ENSO Index: 2026 vs Historical Analogues",
-                      height=440, **_LAYOUT)
+                      height=490, **_LAYOUT)
     return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
 
 
@@ -460,7 +464,7 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
     fig.update_xaxes(**_XAXIS)
     fig.update_yaxes(title_text="SOI (standardised)", range=[-6.5, 4.5], **_YAXIS)
     fig.update_layout(title="Southern Oscillation Index: 2026 vs Historical Analogues",
-                      height=420, **_LAYOUT)
+                      height=470, **_LAYOUT)
     return pio.to_html(fig, full_html=False, include_plotlyjs=False)
 
 
