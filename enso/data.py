@@ -170,6 +170,26 @@ def fetch_mei() -> pd.Series:
 
 
 def fetch_iri_plume(year: int = None, month: int = None, back: int = 6) -> dict:
+    """IRI ENSO forecast plume, from the JSON feed if it answers, else the figure.
+
+    The JSON feed started returning 403 in August 2026. The block is specific to
+    that path -- the plume figure on the same host still answers -- so on failure
+    this falls back to reading the numbers back out of the figure's SVG. Both
+    paths return the same shape; "source" says which one answered.
+    """
+    try:
+        return _fetch_iri_plume_json(year, month, back)
+    except Exception as json_err:
+        from .plume_svg import fetch_iri_plume_svg
+        try:
+            return fetch_iri_plume_svg(year, month, back)
+        except Exception as svg_err:
+            raise ValueError(f"IRI plume: JSON feed failed ({json_err}); "
+                             f"figure fallback failed ({svg_err})") from svg_err
+
+
+def _fetch_iri_plume_json(year: int = None, month: int = None,
+                          back: int = 6) -> dict:
     """IRI ENSO forecast plume: per-model Niño-3.4 forecasts by 3-month season.
 
     Two things about this feed are not self-evident and were established by
@@ -263,6 +283,7 @@ def fetch_iri_plume(year: int = None, month: int = None, back: int = 6) -> dict:
         "n_models": counts,
         "n_oni_models": sum(1 for v in models.values() if v["type"] in oni_types),
         "observed": observed,
+        "source": "plumes_json",
     }
 
 

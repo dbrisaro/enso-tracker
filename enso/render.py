@@ -650,6 +650,12 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
         pk_i    = plume["oni_mean"].index(peak)
         full_lo = plume["oni_min"][pk_i]
         full_hi = plume["oni_max"][pk_i]
+        # The JSON feed also carries relative-ONI members, which have to be
+        # filtered out; the figure the fallback reads never contained them, so
+        # only the JSON build has an exclusion to declare.
+        baseline = ("" if plume.get("source") != "plumes_json" else
+                    " Relative-ONI models are excluded, since they sit on a "
+                    "different baseline.")
         fc_sentence = (f"The dashed magenta line is the IRI forecast plume issued "
                        f"{plume['issue_label']}, averaged over "
                        f"{plume['n_oni_models']} dynamical and statistical models. "
@@ -657,9 +663,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
                        f"{pks['centre']:%Y}, where individual members run from "
                        f"{full_lo:+.2f} to {full_hi:+.2f} °C. The shaded band is "
                        f"the middle 50% of members, not that full range, which "
-                       f"one or two outliers would otherwise dominate. "
-                       f"Relative-ONI models are excluded, since they sit on a "
-                       f"different baseline.")
+                       f"one or two outliers would otherwise dominate." + baseline)
     else:
         fc_note     = "Solid: observed monthly. Dotted: weekly observations."
         fc_sentence = "No forecast plume is loaded for this build."
