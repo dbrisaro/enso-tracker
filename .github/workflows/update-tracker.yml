@@ -1,0 +1,61 @@
+name: Update tracker
+
+# Rebuilds the tracker from the upstream feeds and publishes it to the Jekyll
+# site repo. The page is a Jekyll collection file there, so this pushes to
+# dbrisaro.github.io rather than deploying anything itself; GitHub Pages builds
+# the site from that push.
+#
+# Cadence follows the slowest useful feed rather than the fastest: CPC posts
+# weekly SST on Mondays, so this runs Tuesday and picks up the monthly ONI and
+# the mid-month IRI plume whenever they happen to have landed.
+
+on:
+  schedule:
+    - cron: "17 7 * * 2"   # Tuesdays 07:17 UTC
+  workflow_dispatch:        # and on demand, from the Actions tab
+
+concurrency:
+  group: update-tracker
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the generator
+        uses: actions/checkout@v4
+
+      - name: Check out the site repo
+        uses: actions/checkout@v4
+        with:
+          repository: dbrisaro/dbrisaro.github.io
+          ref: master
+          path: site
+          # Deploy key, so this cannot touch any other repo on the account.
+          ssh-key: ${{ secrets.SITE_DEPLOY_KEY }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build and stage the page
+        run: python update.py --deploy site
+
+      - name: Commit and push
+        working-directory: site
+        run: |
+          git config user.name  "enso-tracker bot"
+          git config user.email "dbrisaro@gmail.com"
+          if git diff --quiet -- _portfolio/enso-tracker.html; then
+            echo "Page unchanged, nothing to publish."
+            exit 0
+          fi
+          git add _portfolio/enso-tracker.html
+          git commit -m "update ENSO tracker $(date -u +%Y-%m-%d)"
+          git push origin master

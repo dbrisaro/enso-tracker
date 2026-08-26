@@ -170,22 +170,27 @@ def fetch_mei() -> pd.Series:
 
 
 def fetch_iri_plume(year: int = None, month: int = None, back: int = 6) -> dict:
-    """IRI ENSO forecast plume, from the JSON feed if it answers, else the figure.
+    """IRI ENSO forecast plume, read out of the published figure's SVG.
 
-    The JSON feed started returning 403 in August 2026. The block is specific to
-    that path -- the plume figure on the same host still answers -- so on failure
-    this falls back to reading the numbers back out of the figure's SVG. Both
-    paths return the same shape; "source" says which one answered.
+    The machine-readable plumes_json feed returned 403 from August 2026 and is
+    not expected back, so the figure is the primary source rather than a
+    fallback: the numbers are decoded from the Matplotlib SVG that IRI's own
+    page draws. The JSON feed is still tried afterwards, cheaply, in case it
+    ever returns; both paths yield the same shape and "source" says which one
+    answered.
+
+    Note that the figure does not distinguish relative-ONI members, so a build
+    from this path has no baseline exclusion to declare (see build_html).
     """
+    from .plume_svg import fetch_iri_plume_svg
     try:
-        return _fetch_iri_plume_json(year, month, back)
-    except Exception as json_err:
-        from .plume_svg import fetch_iri_plume_svg
+        return fetch_iri_plume_svg(year, month, back)
+    except Exception as svg_err:
         try:
-            return fetch_iri_plume_svg(year, month, back)
-        except Exception as svg_err:
-            raise ValueError(f"IRI plume: JSON feed failed ({json_err}); "
-                             f"figure fallback failed ({svg_err})") from svg_err
+            return _fetch_iri_plume_json(year, month, back)
+        except Exception as json_err:
+            raise ValueError(f"IRI plume: figure failed ({svg_err}); "
+                             f"JSON feed failed too ({json_err})") from svg_err
 
 
 def _fetch_iri_plume_json(year: int = None, month: int = None,
