@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # To append to runs.log below. The account default is read-only, so the
+    # token gets write only here, and only for this repo's contents.
+    permissions:
+      contents: write
+
     steps:
       - name: Check out the generator
         uses: actions/checkout@v4
@@ -48,14 +53,33 @@ jobs:
         run: python update.py --deploy site
 
       - name: Commit and push
+        id: publish
         working-directory: site
         run: |
           git config user.name  "enso-tracker bot"
           git config user.email "dbrisaro@gmail.com"
           if git diff --quiet -- _portfolio/enso-tracker.html; then
             echo "Page unchanged, nothing to publish."
+            echo "result=unchanged" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git add _portfolio/enso-tracker.html
           git commit -m "update ENSO tracker $(date -u +%Y-%m-%d)"
           git push origin master
+          echo "result=published" >> "$GITHUB_OUTPUT"
+
+      # Everything above lands in the site repo, which leaves this one with no
+      # commits at all. GitHub disables a scheduled workflow after 60 days
+      # without activity in its own repo, which is how the schedule switched
+      # itself off on 2026-10-27 after running fine since August. The log is
+      # also the only place that says what each run actually did, and it runs
+      # even after a failed build so that a bad week does not stop the clock.
+      - name: Record the run here
+        if: success() || failure()
+        run: |
+          git config user.name  "enso-tracker bot"
+          git config user.email "dbrisaro@gmail.com"
+          printf '%s  %s\n' "$(date -u +%Y-%m-%d)" "${{ steps.publish.outputs.result || 'failed' }}" >> runs.log
+          git add runs.log
+          git commit -m "log run $(date -u +%Y-%m-%d)"
+          git push origin main
