@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Check out the generator
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check out the site repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: dbrisaro/dbrisaro.github.io
           ref: master
@@ -41,7 +41,7 @@ jobs:
           # Deploy key, so this cannot touch any other repo on the account.
           ssh-key: ${{ secrets.SITE_DEPLOY_KEY }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
