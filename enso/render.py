@@ -79,7 +79,7 @@ def _rect(lat1, lat2, lon1, lon2, n=40):
     return lats, lons
 
 
-def chart_pacific_map(include_plotlyjs=False) -> str:
+def chart_pacific_map(include_plotlyjs=False, div_id=None) -> str:
     fig = go.Figure()
 
     n = 40
@@ -175,10 +175,12 @@ def chart_pacific_map(include_plotlyjs=False) -> str:
         font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
         paper_bgcolor="#9DC4E8",
     )
-    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs),
+                       div_id=div_id)
 
 
-def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False, return_fig=False) -> str:
+def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False, return_fig=False,
+                   div_id=None) -> str:
     fig = go.Figure()
 
     dates = oni.index.tolist()
@@ -234,7 +236,8 @@ def chart_oni_full(oni: pd.DataFrame, include_plotlyjs=False, return_fig=False) 
     )
     if return_fig:
         return fig
-    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs),
+                       div_id=div_id)
 
 
 def _plume_xy(plume, onset_yr=2026):
@@ -253,7 +256,7 @@ def _plume_xy(plume, onset_yr=2026):
 
 def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=False,
                  weekly_series: pd.Series = None, plume: dict = None,
-                 return_fig=False) -> str:
+                 return_fig=False, div_id=None) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
     _now_series = nino34_series
@@ -322,10 +325,12 @@ def chart_nino34(nino34_series: pd.Series, show_events=None, include_plotlyjs=Fa
                       height=490, **_LAYOUT)
     if return_fig:
         return fig
-    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs),
+                       div_id=div_id)
 
 
-def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=False, return_fig=False) -> str:
+def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=False,
+                 return_fig=False, div_id=None) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
     _now_series = nino12_series
@@ -390,10 +395,11 @@ def chart_nino12(nino12_series: pd.Series, show_events=None, include_plotlyjs=Fa
     )
     if return_fig:
         return fig
-    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs),
+                       div_id=div_id)
 
 
-def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False, div_id=None) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
     _now_series = mei_series
@@ -429,10 +435,11 @@ def chart_mei(mei_series: pd.Series, show_events=None, include_plotlyjs=False) -
     fig.update_yaxes(title_text="MEI.v2 (standard deviations)", range=[-2.8, 3.0], **_YAXIS)
     fig.update_layout(title="Multivariate ENSO Index: 2026 vs Historical Analogues",
                       height=490, **_LAYOUT)
-    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs))
+    return pio.to_html(fig, full_html=False, include_plotlyjs=_pjs(include_plotlyjs),
+                       div_id=div_id)
 
 
-def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -> str:
+def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False, div_id=None) -> str:
     if show_events is None:
         show_events = SHOW_EVENTS
     _now_series = soi_series
@@ -465,10 +472,10 @@ def chart_soi(soi_series: pd.Series, show_events=None, include_plotlyjs=False) -
     fig.update_yaxes(title_text="SOI (standardised)", range=[-6.5, 4.5], **_YAXIS)
     fig.update_layout(title="Southern Oscillation Index: 2026 vs Historical Analogues",
                       height=470, **_LAYOUT)
-    return pio.to_html(fig, full_html=False, include_plotlyjs=False)
+    return pio.to_html(fig, full_html=False, include_plotlyjs=False, div_id=div_id)
 
 
-def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False) -> str:
+def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False, div_id=None) -> str:
     latest = sst.iloc[-1]
     date   = sst.index[-1].strftime("%B %Y")
     regions = ["Niño 1+2", "Niño 3", "Niño 3.4", "Niño 4"]
@@ -491,10 +498,10 @@ def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False) -> str:
         plot_bgcolor="white", paper_bgcolor="white",
         font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
     )
-    return pio.to_html(fig, full_html=False, include_plotlyjs=False)
+    return pio.to_html(fig, full_html=False, include_plotlyjs=False, div_id=div_id)
 
 
-def chart_analogues(analogues: list, include_plotlyjs=False) -> str:
+def chart_analogues(analogues: list, include_plotlyjs=False, div_id=None) -> str:
     top    = analogues[:12]
     names  = [r["event"] for r in top]
     scores = [r["score"] for r in top]
@@ -515,7 +522,7 @@ def chart_analogues(analogues: list, include_plotlyjs=False) -> str:
         font=dict(family="Hanken Grotesk, Barlow Condensed, sans-serif", size=12),
         xaxis_tickangle=-30,
     )
-    return pio.to_html(fig, full_html=False, include_plotlyjs=False)
+    return pio.to_html(fig, full_html=False, include_plotlyjs=False, div_id=div_id)
 
 
 def chart_sst_comparison(sst_maps: list) -> str:
@@ -607,28 +614,37 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     else:            phase, ph_col = "Neutral",             "#7f8c8d"
 
     pjs_mode   = "cdn" if cdn else True
-    c_map      = chart_pacific_map(include_plotlyjs=pjs_mode)
-    c_oni_full = chart_oni_full(oni)
+
+    # Every chart gets a fixed div id. Left to itself Plotly mints a new UUID per
+    # figure on every build, so the published page differed on every run even in
+    # weeks when no feed had updated anything. The ONI and RONI rankings draw the
+    # same charts twice, hence the suffixes: the ids have to stay unique.
+    c_map      = chart_pacific_map(include_plotlyjs=pjs_mode, div_id="pacific-map")
+    c_oni_full = chart_oni_full(oni, div_id="oni-full")
 
     show_events_oni  = [r["event"] for r in analogues[:4]]
     show_events_roni = [r["event"] for r in analogues_roni[:4]] if analogues_roni else SHOW_EVENTS
 
     wk_n34         = weekly["nino34_anom"] if weekly is not None else None
     c_nino34_oni   = chart_nino34(sst["nino34_anom"], show_events=show_events_oni,
-                                  weekly_series=wk_n34, plume=plume)
-    c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni)
-    c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni)
-    c_mei_oni      = chart_mei(mei, show_events=show_events_oni) if mei is not None else ""
-    c_analogue_oni = chart_analogues(analogues)
+                                  weekly_series=wk_n34, plume=plume,
+                                  div_id="nino34-oni")
+    c_nino12_oni   = chart_nino12(sst["nino12_anom"], show_events=show_events_oni,
+                                  div_id="nino12-oni")
+    c_soi_oni      = chart_soi(soi_df["soi"], show_events=show_events_oni, div_id="soi-oni")
+    c_mei_oni      = chart_mei(mei, show_events=show_events_oni, div_id="mei-oni") if mei is not None else ""
+    c_analogue_oni = chart_analogues(analogues, div_id="analogues-oni")
     sst_sec_oni    = _sst_maps_section(sst_maps_oni)
 
     if analogues_roni:
         c_nino34_roni   = chart_nino34(sst["nino34_anom"], show_events=show_events_roni,
-                                       weekly_series=wk_n34, plume=plume)
-        c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni)
-        c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni)
-        c_mei_roni      = chart_mei(mei, show_events=show_events_roni) if mei is not None else ""
-        c_analogue_roni = chart_analogues(analogues_roni)
+                                       weekly_series=wk_n34, plume=plume,
+                                       div_id="nino34-roni")
+        c_nino12_roni   = chart_nino12(sst["nino12_anom"], show_events=show_events_roni,
+                                       div_id="nino12-roni")
+        c_soi_roni      = chart_soi(soi_df["soi"], show_events=show_events_roni, div_id="soi-roni")
+        c_mei_roni      = chart_mei(mei, show_events=show_events_roni, div_id="mei-roni") if mei is not None else ""
+        c_analogue_roni = chart_analogues(analogues_roni, div_id="analogues-roni")
         sst_sec_roni    = _sst_maps_section(sst_maps_roni)
         has_roni        = True
     else:
