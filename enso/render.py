@@ -691,7 +691,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     # MEI seasons are two-month means stored against their second month, so a
     # value indexed to June is the May-June season and has to be labelled that
     # way rather than as a single month.
-    mei_card = mei_sec = ""
+    mei_card = mei_sec = mei_roni_sec = ""
     if mei is not None and len(mei):
         mei_last  = float(mei.iloc[-1])
         mei_d     = mei.index[-1]
@@ -739,6 +739,19 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        of each pair. Analogues shown are the top ONI matches.{drop_note}
        Source: NOAA PSL.</p>
   </div>"""
+
+        # The MEI section above is pinned to the ONI ranking. The RONI toggle
+        # reorders which events get drawn, so it needs its own copy of the chart.
+        mei_roni_sec = f"""
+    <p>MEI.v2 for the RONI analogues. The index is already expressed in standard deviations
+       of the coupled signal, so it shifts less between eras than Niño-3.4 does; what changes
+       here is which events the detrended ranking puts on the chart.</p>
+    <div class="cbox">
+      {c_mei_roni}
+      <p class="cnote">Two-month overlapping seasons, plotted against the second month
+         of each pair. Analogues shown are the top RONI matches.{drop_note}
+         Source: NOAA PSL.</p>
+    </div>"""
 
     # The monthly indices lag by up to five weeks. When the weekly product runs
     # ahead of them, surface it so the page is not quoting a stale figure as
@@ -844,6 +857,7 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
       {c_soi_roni}
       <p class="cnote">El Niño threshold -1, La Niña +1. Standardised SOI. Source: NOAA CPC.</p>
     </div>
+{mei_roni_sec}
     <h2>Full analogue ranking (RONI)</h2>
     <p class="takehome">RONI rankings often surface older events from the 1960s and 1970s. This is expected: stripped of the warming trend, those events look more like 2026 in terms of forcing pattern.</p>
     <p>All confirmed El Niño events since 1950, ordered by RONI correlation with 2026.</p>
