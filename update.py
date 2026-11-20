@@ -9,7 +9,7 @@ from pathlib import Path
 _DEFAULT_FRONT_MATTER = """---
 layout: null
 title: "ENSO 2026 Tracker"
-excerpt: "Live tracker comparing 2026 El Niño conditions against every major ENSO event since 1950: Niño-3.4 SST anomaly, SOI, Kelvin waves, and analogue rankings updated with NOAA CPC data."
+excerpt: "Live tracker comparing 2026 El Niño conditions against every major ENSO event since 1950: Niño-3.4 SST anomaly, SOI, MEI and analogue rankings updated with NOAA CPC data."
 date: 2026-07-13
 permalink: /portfolio/enso-tracker/
 category: "Data Science"
@@ -29,6 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--deploy", metavar="JEKYLL_REPO")
     args = parser.parse_args()
+    skipped = []
 
     try:
         from enso.data import fetch_sst, fetch_soi, fetch_oni
@@ -44,6 +45,7 @@ def main():
         weekly = fetch_weekly_sst()
     except Exception as e:
         print(f"Weekly SST fetch skipped: {e}")
+        skipped.append("weekly")
         weekly = None
 
     try:
@@ -51,6 +53,7 @@ def main():
         plume = fetch_iri_plume()
     except Exception as e:
         print(f"IRI plume fetch skipped: {e}")
+        skipped.append("plume")
         plume = None
 
     try:
@@ -58,12 +61,13 @@ def main():
         mei = fetch_mei()
     except Exception as e:
         print(f"MEI fetch skipped: {e}")
+        skipped.append("mei")
         mei = None
 
     latest = sst.iloc[-1]
-    print(f"Nino-3.4 : {latest['nino34_anom']:+.2f} C")
-    print(f"Nino-1+2 : {latest['nino12_anom']:+.2f} C")
-    print(f"Nino-4   : {latest['nino4_anom']:+.2f} C")
+    print(f"Niño-3.4 : {latest['nino34_anom']:+.2f} C")
+    print(f"Niño-1+2 : {latest['nino12_anom']:+.2f} C")
+    print(f"Niño-4   : {latest['nino4_anom']:+.2f} C")
     print(f"SOI      : {soi_df['soi'].iloc[-1]:+.1f}")
     if plume is not None:
         pk = max((m, s) for m, s in zip(plume["oni_mean"], plume["seasons"])
@@ -84,12 +88,15 @@ def main():
 
     from enso.analogues import rank_analogues
     from enso.data import fetch_roni
-    analogues      = rank_analogues(sst["nino34_anom"])
+    from enso.data import peak_oni_by_event
+    peaks          = peak_oni_by_event(oni)
+    analogues      = rank_analogues(sst["nino34_anom"], peaks=peaks)
     try:
         roni           = fetch_roni()
-        analogues_roni = rank_analogues(roni)
+        analogues_roni = rank_analogues(roni, peaks=peaks)
     except Exception as e:
         print(f"RONI fetch skipped: {e}")
+        skipped.append("roni")
         analogues_roni = None
     for r in analogues[:3]:
         print(f"  ONI #{r['rank']}  {r['event']}  score={r['score']:.3f}")
@@ -130,6 +137,7 @@ def main():
             print("SST maps (RONI): " + " | ".join(m["label"] for m in sst_maps_roni))
     except Exception as e:
         print(f"SST map fetch skipped: {e}")
+        skipped.append("maps")
         sst_maps_oni = sst_maps_roni = None
 
     from enso.render import build_html
@@ -142,6 +150,9 @@ def main():
     out.parent.mkdir(exist_ok=True)
     out.write_text(html, encoding="utf-8")
     print(f"Written -> {out}  ({len(html) // 1024} KB)")
+
+    Path("output/skipped.txt").write_text(", ".join(skipped), encoding="utf-8")
+    print("Skipped  : " + (", ".join(skipped) if skipped else "nothing"))
 
     if args.deploy:
         repo = Path(args.deploy).expanduser()
