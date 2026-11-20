@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-FIGURE_URL = "https://ensoforecast2.iri.columbia.edu/figure4_plot/{year}/{month}"
+FIGURE_URL = "https://ensoforecast.iri.columbia.edu/figure4_plot/{year}/{month}"
 
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
