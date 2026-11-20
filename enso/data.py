@@ -11,6 +11,9 @@ _TIMEOUT = 20
 
 URLS = {
     "sst": "https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices",
+    # Monthly ERSSTv6 Nino-3.4, the ONI's own input: back to 1950 and on the
+    # same footing as oni.ascii.txt, which sstoi.indices (OISST, 1982 on) is not.
+    "nino34": "https://www.cpc.ncep.noaa.gov/data/indices/detrend.nino34.ascii.txt",
     "oni": "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
     "soi": "https://www.cpc.ncep.noaa.gov/data/indices/soi",
     # 1991-2020 base period, matching sstoi.indices. The wksst8110.for file
@@ -30,25 +33,25 @@ SEASON_BY_START = ["JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA",
 MEI_START_YEAR = 1979
 
 ENSO_EVENTS = {
-    "1957–58": {"onset_yr": 1957, "peak_oni": 1.7, "type": "EP", "color": "#7f8c8d"},
-    "1963–64": {"onset_yr": 1963, "peak_oni": 1.2, "type": "EP", "color": "#95a5a6"},
-    "1965–66": {"onset_yr": 1965, "peak_oni": 1.6, "type": "EP", "color": "#7f8c8d"},
-    "1968–69": {"onset_yr": 1968, "peak_oni": 1.0, "type": "CP", "color": "#bdc3c7"},
-    "1972–73": {"onset_yr": 1972, "peak_oni": 2.1, "type": "EP", "color": "#8e44ad"},
-    "1976–77": {"onset_yr": 1976, "peak_oni": 0.8, "type": "EP", "color": "#bdc3c7"},
-    "1982–83": {"onset_yr": 1982, "peak_oni": 2.2, "type": "EP", "color": "#8e44ad"},
-    "1986–87": {"onset_yr": 1986, "peak_oni": 1.6, "type": "EP", "color": "#27ae60"},
-    "1991–92": {"onset_yr": 1991, "peak_oni": 1.7, "type": "EP", "color": "#16a085"},
-    "1994–95": {"onset_yr": 1994, "peak_oni": 1.0, "type": "CP", "color": "#7f8c8d"},
-    "1997–98": {"onset_yr": 1997, "peak_oni": 2.4, "type": "EP", "color": "#c0392b"},
-    "2002–03": {"onset_yr": 2002, "peak_oni": 1.3, "type": "CP", "color": "#2980b9"},
-    "2004–05": {"onset_yr": 2004, "peak_oni": 0.9, "type": "CP", "color": "#95a5a6"},
-    "2006–07": {"onset_yr": 2006, "peak_oni": 1.1, "type": "EP", "color": "#f39c12"},
-    "2009–10": {"onset_yr": 2009, "peak_oni": 1.3, "type": "CP", "color": "#3498db"},
-    "2015–16": {"onset_yr": 2015, "peak_oni": 2.6, "type": "EP", "color": "#16a085"},
-    "2018–19": {"onset_yr": 2018, "peak_oni": 0.9, "type": "CP", "color": "#95a5a6"},
-    "2023–24": {"onset_yr": 2023, "peak_oni": 2.0, "type": "EP", "color": "#e67e22"},
-    "2026–27": {"onset_yr": 2026, "peak_oni": None, "type": "EP", "color": "#1e6fa5"},
+    "1957–58": {"onset_yr": 1957, "type": "EP", "color": "#7f8c8d"},
+    "1963–64": {"onset_yr": 1963, "type": "EP", "color": "#95a5a6"},
+    "1965–66": {"onset_yr": 1965, "type": "EP", "color": "#7f8c8d"},
+    "1968–69": {"onset_yr": 1968, "type": "CP", "color": "#bdc3c7"},
+    "1972–73": {"onset_yr": 1972, "type": "EP", "color": "#8e44ad"},
+    "1976–77": {"onset_yr": 1976, "type": "EP", "color": "#bdc3c7"},
+    "1982–83": {"onset_yr": 1982, "type": "EP", "color": "#8e44ad"},
+    "1986–87": {"onset_yr": 1986, "type": "EP", "color": "#27ae60"},
+    "1991–92": {"onset_yr": 1991, "type": "EP", "color": "#16a085"},
+    "1994–95": {"onset_yr": 1994, "type": "CP", "color": "#7f8c8d"},
+    "1997–98": {"onset_yr": 1997, "type": "EP", "color": "#c0392b"},
+    "2002–03": {"onset_yr": 2002, "type": "CP", "color": "#2980b9"},
+    "2004–05": {"onset_yr": 2004, "type": "CP", "color": "#95a5a6"},
+    "2006–07": {"onset_yr": 2006, "type": "EP", "color": "#f39c12"},
+    "2009–10": {"onset_yr": 2009, "type": "CP", "color": "#3498db"},
+    "2015–16": {"onset_yr": 2015, "type": "EP", "color": "#16a085"},
+    "2018–19": {"onset_yr": 2018, "type": "CP", "color": "#95a5a6"},
+    "2023–24": {"onset_yr": 2023, "type": "EP", "color": "#e67e22"},
+    "2026–27": {"onset_yr": 2026, "type": "EP", "color": "#1e6fa5"},
 }
 
 
@@ -77,7 +80,54 @@ def fetch_sst() -> pd.DataFrame:
             continue
     df = pd.DataFrame(rows)
     df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
-    return df.set_index("date").sort_index()
+    df = df.set_index("date").sort_index()
+
+    # Nino-3.4 comes from ERSSTv6 instead, which reaches back to 1950. The other
+    # three regions have no equivalent file and stay on OISST, so they are empty
+    # before 1982.
+    n34 = fetch_nino34_monthly()
+    df  = df.drop(columns=["nino34", "nino34_anom"]).reindex(
+        df.index.union(n34.index))
+    df[["nino34", "nino34_anom"]] = n34
+    return df.loc[:df["nino34_anom"].last_valid_index()]
+
+
+def fetch_nino34_monthly() -> pd.Series:
+    """Monthly Nino-3.4 anomaly from CPC's ERSSTv6 file.
+
+    Columns are YR MON TOTAL ClimAdjust ANOM; the anomaly is the last one and a
+    centred 3-month mean of it reproduces the ONI to 0.01 C.
+    """
+    rows = []
+    for line in _get(URLS["nino34"]).splitlines():
+        parts = line.split()
+        if len(parts) < 5 or not parts[0].isdigit():
+            continue
+        try:
+            rows.append({"year": int(parts[0]), "month": int(parts[1]),
+                         "nino34": float(parts[2]), "nino34_anom": float(parts[4])})
+        except ValueError:
+            continue
+    if not rows:
+        raise ValueError("ERSSTv6 Nino-3.4 file: no data rows parsed")
+    df = pd.DataFrame(rows)
+    df["date"] = pd.to_datetime(dict(year=df["year"], month=df["month"], day=1))
+    return df.set_index("date")[["nino34", "nino34_anom"]].sort_index()
+
+
+def peak_oni_by_event(oni: pd.DataFrame) -> dict:
+    """Highest ONI each event reached, from the downloaded record.
+
+    The window is wider than the 24 months the analogue charts align on so that
+    the late second peak of events like 1986-87 is not cut off.
+    """
+    peaks = {}
+    for event, meta in ENSO_EVENTS.items():
+        idx  = pd.date_range(pd.Timestamp(meta["onset_yr"] - 1, 7, 1),
+                             periods=30, freq="MS")
+        vals = oni["oni"].reindex(idx).dropna()
+        peaks[event] = round(float(vals.max()), 2) if len(vals) else None
+    return peaks
 
 
 def fetch_oni() -> pd.DataFrame:

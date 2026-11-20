@@ -112,7 +112,8 @@ def main():
     args = ap.parse_args()
 
     from enso.data import (fetch_sst, fetch_oni, fetch_roni, fetch_weekly_sst,
-                           fetch_sst_anomaly_map, fetch_iri_plume)
+                           fetch_sst_anomaly_map, fetch_iri_plume,
+                           peak_oni_by_event)
     from enso.analogues import rank_analogues
     from enso import render
 
@@ -121,9 +122,10 @@ def main():
     oni    = fetch_oni()
     weekly = fetch_weekly_sst()
     plume  = fetch_iri_plume()
-    analogues = rank_analogues(sst["nino34_anom"])
+    peaks     = peak_oni_by_event(oni)
+    analogues = rank_analogues(sst["nino34_anom"], peaks=peaks)
     try:
-        analogues_roni = rank_analogues(fetch_roni())
+        analogues_roni = rank_analogues(fetch_roni(), peaks=peaks)
     except Exception as e:
         print(f"  RONI unavailable: {e}")
         analogues_roni = None

@@ -12,7 +12,8 @@ def _pearson(a: list, b: list) -> float:
     return float(np.clip(r, -1, 1))
 
 
-def rank_analogues(series: pd.Series, n_obs: int = 12) -> list[dict]:
+def rank_analogues(series: pd.Series, n_obs: int = 12,
+                   peaks: dict = None) -> list[dict]:
     current = aligned_series(series, 2026, 24)[:n_obs]
     rows = []
     for event, meta in ENSO_EVENTS.items():
@@ -22,7 +23,7 @@ def rank_analogues(series: pd.Series, n_obs: int = 12) -> list[dict]:
         rows.append({
             "event":    event,
             "score":    round(_pearson(current, hist), 3),
-            "peak_oni": meta["peak_oni"],
+            "peak_oni": (peaks or {}).get(event),
             "type":     meta["type"],
             "color":    meta["color"],
             "onset_yr": meta["onset_yr"],
