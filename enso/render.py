@@ -5,6 +5,7 @@ import plotly.io as pio
 import pandas as pd
 import numpy as np
 from enso.data import ENSO_EVENTS, aligned_series, MEI_START_YEAR
+from enso.analogues import _pearson
 
 MONTH_LABELS = [
     "Jul","Aug","Sep","Oct","Nov","Dec",
@@ -16,6 +17,11 @@ MONTH_LABELS = [
 N_OBS = 12
 
 SHOW_EVENTS = ["1997–98", "2015–16", "1982–83", "2023–24"]
+
+# Quoted from the CPC ENSO Diagnostic Discussion; all three fields move together.
+CPC_STRENGTH = {"label": "Prob. strong+ (JFM 2027)",
+                "value": "79 %",
+                "issued": "12 Nov 2026"}
 
 _LAYOUT = dict(
     plot_bgcolor="white", paper_bgcolor="white",
@@ -502,7 +508,7 @@ def chart_nino_bar(sst: pd.DataFrame, include_plotlyjs=False, div_id=None) -> st
 
 
 def chart_analogues(analogues: list, include_plotlyjs=False, div_id=None) -> str:
-    top    = analogues[:12]
+    top    = analogues
     names  = [r["event"] for r in top]
     scores = [r["score"] for r in top]
     colors = [r["color"] for r in top]
@@ -785,6 +791,52 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   </div>"""
     ratio      = float(latest["nino12_anom"]) / max(abs(float(latest["nino4_anom"])), 0.1)
 
+    weekly_card = ""
+    if weekly is not None and len(weekly):
+        weekly_card = f"""
+    <div class="card"><div class="lbl">Niño-3.4 weekly ({weekly.index[-1]:%d %b %Y})</div>
+      <div class="val">{float(weekly.iloc[-1]['nino34_anom']):+.2f} °C</div>
+      <div class="note">OISST / week centred / not comparable with the monthly values</div></div>"""
+
+    n_strong = sum(1 for r in analogues
+                   if r["peak_oni"] is not None and r["peak_oni"] >= 1.5)
+
+    n12  = sst["nino12_anom"].dropna()
+    n12y = n12[n12.index.year == n12.index[-1].year]
+    n12_sentence = (f"Through {n12y.index[0]:%B}–{n12y.index[-1]:%B} {n12y.index[-1]:%Y} it has gone "
+                    f"from {n12y.iloc[0]:+.2f} °C to {n12y.iloc[-1]:+.2f} °C.")
+
+    obs      = aligned_series(sst["nino34_anom"], 2026, 24)
+    n_months = sum(1 for v in obs if v is not None)
+    here     = obs[n_months - 1]
+    above = []
+    for r in analogues[:2]:
+        v = aligned_series(sst["nino34_anom"], r["onset_yr"], 24)[n_months - 1]
+        if v is not None:
+            above.append((r["event"], v))
+    if above and all(here > v for _, v in above):
+        track_sentence = ("At the same point in the cycle 2026 is running above "
+                          + " and ".join(f"{e} ({v:+.2f} °C)" for e, v in above)
+                          + f", at {here:+.2f} °C.")
+    elif above:
+        track_sentence = ("At the same point in the cycle 2026 sits at "
+                          f"{here:+.2f} °C, against "
+                          + " and ".join(f"{e} ({v:+.2f} °C)" for e, v in above) + ".")
+    else:
+        track_sentence = ""
+
+    soi_cur  = aligned_series(soi_df["soi"], 2026, 24)[:n_months]
+    soi_rank = []
+    for event, meta in ENSO_EVENTS.items():
+        if meta["onset_yr"] == 2026:
+            continue
+        r = _pearson(soi_cur, aligned_series(soi_df["soi"], meta["onset_yr"], 24)[:n_months])
+        soi_rank.append((r, event))
+    soi_rank.sort(reverse=True)
+    soi_sentence = (f"Of every event since 1950 the 2026 SOI tracks closest to "
+                    f"{soi_rank[0][1]} (r = {soi_rank[0][0]:.2f}); the latest monthly "
+                    f"value is {soi_latest:+.1f}.") if soi_rank else ""
+
     if nv >= 2.0:
         cond_takehome = f"At {nv:+.2f} °C Niño-3.4 is in very strong El Niño territory, tracking alongside the most intense events on record."
     elif nv >= 1.5:
@@ -973,26 +1025,26 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
     <div class="card"><div class="lbl">Niño-1+2</div>
       <div class="val">{latest['nino12_anom']:+.2f} °C</div>
       <div class="note">Far eastern Pacific</div></div>
-    <div class="card"><div class="lbl">Nino-3</div>
+    <div class="card"><div class="lbl">Niño-3</div>
       <div class="val">{latest['nino3_anom']:+.2f} °C</div>
       <div class="note">Central-east Pacific</div></div>
-    <div class="card"><div class="lbl">Nino-4</div>
+    <div class="card"><div class="lbl">Niño-4</div>
       <div class="val">{latest['nino4_anom']:+.2f} °C</div>
       <div class="note">Central Pacific</div></div>
     <div class="card"><div class="lbl">SOI ({soi_date})</div>
       <div class="val">{soi_latest:+.1f}</div>
       <div class="note">El Niño below -1 (standardised)</div></div>
-    <div class="card"><div class="lbl">Prob. Very Strong</div>
-      <div class="val">63 %</div>
-      <div class="note">NOAA CPC / NDJ 2026-27</div></div>{mei_card}
+    <div class="card"><div class="lbl">{CPC_STRENGTH["label"]}</div>
+      <div class="val">{CPC_STRENGTH["value"]}</div>
+      <div class="note">NOAA CPC discussion, issued {CPC_STRENGTH["issued"]}</div></div>{mei_card}{weekly_card}
   </div>
 {weekly_box}
 
   <div class="infobox">
     Not all El Niños are the same. In an Eastern Pacific event the warmth sits off South America
-    (Niño-1+2 and Nino-3); in a Central Pacific event it pools near the dateline (Nino-4).
+    (Niño-1+2 and Niño-3); in a Central Pacific event it pools near the dateline (Niño-4).
     Right now Niño-1+2 ({latest['nino12_anom']:+.2f} °C) is running {ratio:.1f}x warmer than
-    Nino-4 ({latest['nino4_anom']:+.2f} °C), a strong Eastern Pacific signature consistent with 1997-98.
+    Niño-4 ({latest['nino4_anom']:+.2f} °C), a strong Eastern Pacific signature consistent with 1997-98.
     EP events tend to be stronger and longer-lived than CP events.
   </div>
 
@@ -1000,12 +1052,12 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
 {mei_sec}
 
   <h2>Historical context: 75 years of ENSO</h2>
-  <p class="takehome">Strong El Niño events above +1.5 °C are rare, only four in 75 years of records. What this chart shows is that 2026 is not heading toward an ordinary event.</p>
+  <p class="takehome">Strong El Niño events peaking above +1.5 °C are rare: {n_strong} in 75 years of records. What this chart shows is that 2026 is not heading toward an ordinary event.</p>
   <p>The chart plots the Oceanic Niño Index (ONI), a 3-month running mean of Niño-3.4 sea surface
      temperature anomalies and the official NOAA benchmark for declaring El Niño or La Niña
      conditions. Every event in the observational record is here, showing how frequently they occur,
-     how long they last, and how intense they get. The four annotated peaks are the events
-     most comparable to 2026.</p>
+     how long they last, and how intense they get. The four annotated peaks are the four
+     strongest events on record.</p>
   <div class="cbox">
     {c_oni_full}
     <p class="cnote">Source: NOAA CPC.</p>
@@ -1022,24 +1074,21 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
        2026 over the first 12 months of the event cycle.</p>
     <div class="grid">{top3_html}</div>
 {sst_sec_oni}
-    <p>Niño-3.4 through the full 24-month window for the top ONI analogues. Through the observed
-       period 2026 has tracked between 2023-24 and 1997-98. {fc_sentence}</p>
+    <p>Niño-3.4 through the full 24-month window for the top ONI analogues. {track_sentence}
+       {fc_sentence}</p>
     <div class="cbox">
       {c_nino34_oni}
       <p class="cnote">Observed monthly data. Month 0 = July of precursor year. Source: NOAA CPC.</p>
     </div>
     <p>Niño 1+2 captures the far eastern Pacific, just off Ecuador and Peru. In Eastern Pacific
-       events this region warms first and most sharply. The 2026 jump from -0.3 °C in March to
-       +1.81 °C in May is one of the fastest accelerations on record for this index, placing 2026
-       well above where 2023-24 was at the same stage.</p>
+       events this region warms first and most sharply. {n12_sentence}</p>
     <div class="cbox">
       {c_nino12_oni}
       <p class="cnote">Observed monthly data. Source: NOAA CPC.</p>
     </div>
     <p>The SOI provides the atmospheric side of the story. When the SOI turns sharply negative,
        trade winds weaken and warm water spreads east, amplifying the ocean anomaly through
-       Bjerknes feedback. The 2026 SOI has tracked close to the 1997-98 pattern, suggesting
-       coupling is already well established.</p>
+       Bjerknes feedback. {soi_sentence}</p>
     <div class="cbox">
       {c_soi_oni}
       <p class="cnote">El Niño threshold -1, La Niña +1. Standardised SOI. Source: NOAA CPC.</p>
@@ -1056,31 +1105,17 @@ def build_html(sst: pd.DataFrame, soi_df: pd.DataFrame, oni: pd.DataFrame,
   </div>
 {roni_view_html}
 
-  <h2>What's coming</h2>
-  <p class="takehome">The surface signal is now clear, but what happens next depends on heat stored below the thermocline. Two additional variables would sharpen the peak intensity forecast considerably.</p>
-
-  <div class="alert ag">
-    <strong>Kelvin waves (subsurface):</strong> three downwelling Kelvin waves in late 2025 and early
-    2026 loaded the thermocline and are the primary subsurface driver of this event. Depth-section
-    data from GODAS and TAO-TRITON would make this visible.
-  </div>
-
-  <div class="alert ag">
-    <strong>Warm Water Volume (WWV):</strong> the volume of water above 20 °C averaged over
-    5S-5N, 120E-80W predicts peak intensity months in advance and is available at NOAA PMEL.
-  </div>
-
-
 
   <h2>Sources</h2>
   <ul class="srcs">
-    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices" target="_blank">NOAA CPC: Monthly Niño region SST indices</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/detrend.nino34.ascii.txt" target="_blank">NOAA CPC: Monthly Niño-3.4 (ERSSTv6), the ONI input</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices" target="_blank">NOAA CPC: Monthly Niño region SST indices (OISST, 1982 on)</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt" target="_blank">NOAA CPC: Oceanic Niño Index (ONI)</a></li>
-    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for" target="_blank">NOAA CPC: Weekly Niño region SST indices</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for" target="_blank">NOAA CPC: Weekly Niño region SST indices (OISST)</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/data/indices/soi" target="_blank">NOAA CPC: Standardised SOI</a></li>
     <li><a href="https://psl.noaa.gov/enso/mei/" target="_blank">NOAA PSL: Multivariate ENSO Index v2 (MEI.v2)</a></li>
-    <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, June 2026</a></li>
-    <li><a href="https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/" target="_blank">IRI Columbia: ENSO Forecasts, June 2026</a></li>
+    <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml" target="_blank">NOAA CPC: ENSO Diagnostic Discussion, issued {CPC_STRENGTH["issued"]}</a></li>
+    <li><a href="https://forecast.ccsr.columbia.edu/forecasts/enso/plumes" target="_blank">IRI Columbia: ENSO forecast plumes</a></li>
     <li><a href="https://www.ncei.noaa.gov/products/extended-reconstructed-sst" target="_blank">NOAA NCEI: Extended Reconstructed SST v5 (ERSSTV5)</a></li>
     <li><a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/" target="_blank">NOAA CPC: Relative Oceanic Niño Index (RONI)</a></li>
   </ul>
