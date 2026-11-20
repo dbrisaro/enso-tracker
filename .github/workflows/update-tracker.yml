@@ -79,7 +79,11 @@ jobs:
         run: |
           git config user.name  "enso-tracker bot"
           git config user.email "dbrisaro@gmail.com"
-          printf '%s  %s\n' "$(date -u +%Y-%m-%d)" "${{ steps.publish.outputs.result || 'failed' }}" >> runs.log
+          line="${{ steps.publish.outputs.result || 'failed' }}"
+          for part in $(tr ',' ' ' < output/skipped.txt 2>/dev/null || true); do
+            line="$line, $part skipped"
+          done
+          printf '%s  %s\n' "$(date -u +%Y-%m-%d)" "$line" >> runs.log
           git add runs.log
           git commit -m "log run $(date -u +%Y-%m-%d)"
           git push origin main
